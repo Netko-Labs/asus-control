@@ -1,0 +1,25 @@
+{
+  "name": "asus-control",
+  "private": true,
+  "type": "module",
+  "description": "ASUS Control: a Dashi applet for ROG and TUF laptops.",
+  "scripts": {
+    "dev": "dashi-applet dev",
+    "pack": "dashi-applet pack",
+    "publish": "dashi-applet publish",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "@dashi/applet": "file:/home/pejedev/Developer/dashiOS/packages/applet",
+    "@dashi/ui": "file:/home/pejedev/Developer/dashiOS/packages/dashi-ui",
+    "@mirinjs/metal": "file:/home/pejedev/Developer/mirin/packages/mirin-metal",
+    "react": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/react": "^19.2.0",
+    "typescript": "^5.9.0"
+  },
+  "packageManager": "bun@1.4.4"
+}
