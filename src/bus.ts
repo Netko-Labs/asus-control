@@ -20,8 +20,18 @@ export class BusError extends Error {
 /** Runs busctl; tests stand in. */
 export type BusctlRunner = (args: readonly string[]) => Promise<{ code: number; stdout: string; stderr: string }>;
 
+/**
+ * Which bus busctl talks to for a call to `name`: the system bus, except
+ * dashi-hardware on the session bus when `DASHI_HARDWARE_BUS=session` (a
+ * fake laptop for development, `dashi-hardware --sysfs-root … serve`).
+ */
+export function busFlag(name: string, env: Record<string, string | undefined> = process.env): "--system" | "--user" {
+  return name === "dev.dashi.Hardware1" && env.DASHI_HARDWARE_BUS === "session" ? "--user" : "--system";
+}
+
 export const runBusctl: BusctlRunner = async (args) => {
-  const child = Bun.spawn(["busctl", "--system", "--json=short", ...args], { stdout: "pipe", stderr: "pipe" });
+  // args[1] is the destination for call, get-property and set-property.
+  const child = Bun.spawn(["busctl", busFlag(args[1] ?? ""), "--json=short", ...args], { stdout: "pipe", stderr: "pipe" });
   const [code, stdout, stderr] = await Promise.all([child.exited, new Response(child.stdout).text(), new Response(child.stderr).text()]);
   return { code, stdout, stderr };
 };

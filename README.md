@@ -48,9 +48,11 @@ bun run pack                # dist/dev.netko.asus-control-<version>.dashi-applet
 bun run publish             # the pull request to Netko-Labs/dashi-applets, prepared locally
 ```
 
-The dependencies are by path (`file:/home/pejedev/Developer/dashiOS/packages/applet`
-and its neighbours) until @dashi/applet is published; the catalog's CI points
-them at its own checkouts when it rebuilds a version.
+The dependencies are by path, to sibling checkouts (`file:../dashiOS/packages/applet`,
+`../dashiOS/packages/dashi-ui`, `../mirin/packages/mirin-metal`) until @dashi/applet
+is published; the catalog's CI points them at its own checkouts when it rebuilds a
+version. With `DASHI_HARDWARE_BUS=session`, dashi-hardware is looked for on the session
+bus: a fake G14 (`dashi-hardware --sysfs-root data/fixtures/ga403wr serve` in dashiOS).
 
 ## To check on the machine
 

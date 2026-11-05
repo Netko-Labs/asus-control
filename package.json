@@ -11,9 +11,9 @@
     "typecheck": "tsc --noEmit -p ."
   },
   "dependencies": {
-    "@dashi/applet": "file:/home/pejedev/Developer/dashiOS/packages/applet",
-    "@dashi/ui": "file:/home/pejedev/Developer/dashiOS/packages/dashi-ui",
-    "@mirinjs/metal": "file:/home/pejedev/Developer/mirin/packages/mirin-metal",
+    "@dashi/applet": "file:../dashiOS/packages/applet",
+    "@dashi/ui": "file:../dashiOS/packages/dashi-ui",
+    "@mirinjs/metal": "file:../mirin/packages/mirin-metal",
     "react": "^19.2.0"
   },
   "devDependencies": {
