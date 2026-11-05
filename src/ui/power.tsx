@@ -70,7 +70,7 @@ export function PowerPane() {
               <Row key={knob} label={label}>
                 <Segmented
                   testID={`recipe:${knob}`}
-                  options={range.choices.map((choice) => ({ value: choice, label: choice.replaceAll("_", " ") }))}
+                  options={choicesShown(knob, range.choices, String(value))}
                   value={String(value)}
                   onChange={(next) => change(knob, next)}
                 />
@@ -102,4 +102,19 @@ export function BatteryPane() {
       </Row>
     </Group>
   );
+}
+
+/** The energy preferences worth a choice, in plain words; the rest (default, dynamic) only while one is set. */
+const EPP_WORDS: Record<string, string> = {
+  performance: "Fastest",
+  balance_performance: "Fast",
+  balance_power: "Efficient",
+  power: "Most efficient",
+};
+
+function choicesShown(knob: string, choices: readonly string[], current: string): { value: string; label: string }[] {
+  if (knob !== "epp") return choices.map((choice) => ({ value: choice, label: choice.replaceAll("_", " ") }));
+  return choices
+    .filter((choice) => choice in EPP_WORDS || choice === current)
+    .map((choice) => ({ value: choice, label: EPP_WORDS[choice] ?? choice.replaceAll("_", " ") }));
 }

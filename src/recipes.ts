@@ -29,7 +29,7 @@ export const RECIPE_KNOBS: ReadonlyArray<{ knob: string; label: string; unit?: s
   { knob: "nv-tgp", label: "Graphics power", unit: "W" },
   { knob: "nv-dynamic-boost", label: "Graphics boost", unit: "W" },
   { knob: "nv-temp-target", label: "Graphics temperature limit", unit: "°C" },
-  { knob: "epp", label: "Preference" },
+  { knob: "epp", label: "Energy" },
   { knob: "boost", label: "Boost clock" },
 ];
 
