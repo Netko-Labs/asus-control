@@ -50,7 +50,7 @@ export function AsusPopover({ onOpenWindow }: { onOpenWindow: () => void }) {
       <View style={{ flexDirection: "column", gap: 1 }}>
         <Text style={{ fontSize: 14, fontWeight: "bold", color: colors.text }}>ASUS Control</Text>
         <View testID="live-line">
-          <Text style={{ fontSize: 12, color: colors.textMuted }}>{state.problem ?? (liveLine(state.readings) || "Reading the sensors…")}</Text>
+          <Text style={{ fontSize: 12, color: colors.textMuted }}>{state.problem ?? (liveLine(state.readings) || (state.machine ? "No temperature or fan readings here" : "Reading the sensors…"))}</Text>
         </View>
       </View>
       {mode && (
