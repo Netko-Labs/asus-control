@@ -1,7 +1,7 @@
 {
   "id": "dev.netko.asus-control",
   "name": "ASUS Control",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "dashi": ">=0.4",
   "entry": "src/main.tsx",
   "summary": "Fans, power and lights for ROG and TUF laptops.",
@@ -11,5 +11,5 @@
   "source": "https://github.com/Netko-Labs/asus-control",
   "categories": ["hardware"],
   "when": { "vendor": "ASUSTeK COMPUTER INC.", "laptop": true },
-  "permissions": ["hardware.power", "hardware.lighting", "hardware.fans", "hardware.tuning", "dbus.system:xyz.ljones.Asusd"]
+  "permissions": ["hardware.power", "hardware.lighting", "hardware.fans", "hardware.tuning"]
 }

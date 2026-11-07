@@ -8,7 +8,7 @@ import { Segmented, useColors } from "@dashi/ui";
 import { Text, View } from "@mirinjs/metal";
 import { MODES } from "../recipes.ts";
 import { liveLine } from "../sensors.ts";
-import { SLASH_MODES } from "../slash.ts";
+import { modeName } from "../slash.ts";
 import { useLive } from "./controls.tsx";
 
 export const POPOVER_SIZE = { width: 300, height: 340 } as const;
@@ -89,7 +89,7 @@ export function AsusPopover({ onOpenWindow }: { onOpenWindow: () => void }) {
               testID="lid"
               options={[
                 { value: "off", label: "Lid off" },
-                { value: "on", label: SLASH_MODES.find((each) => each.mode === state.slash?.mode)?.name ?? "Lid on" },
+                { value: "on", label: modeName(state.slash.mode) },
               ]}
               value={state.slash.enabled ? "on" : "off"}
               onChange={(value) => void live.withSlash((slash) => slash.setEnabled(value === "on"))}

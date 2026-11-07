@@ -1,17 +1,18 @@
 /**
  * Lighting (dashiOS spec, ASUS Control F): the lid's Slash bar drawn as it
- * will play, its animation, speed, brightness and when it shows (asusd);
- * the keyboard's level (dashi-hardware's kbd-backlight).
+ * will play, its animation, speed, brightness and when it shows; the
+ * keyboard's level. Both through dashi-hardware (Slash, kbd-backlight). With
+ * no Slash bar, there is no lid section.
  */
 
 import { Choices, Group, Note, Row, Segmented, useColors } from "@dashi/ui";
 import { View } from "@mirinjs/metal";
 import { useEffect, useState } from "react";
-import { frameMs, SEGMENTS, SHOW_FLAGS, SLASH_MODES, slashFrame } from "../slash.ts";
+import { frameMs, modeName, SEGMENTS, SHOW_FLAGS, slashFrame } from "../slash.ts";
 import { SectionTitle, SliderValue, useLive } from "./controls.tsx";
 
 /** The bar as it will light: slanted segments, each as bright as the animation's frame says, scaled by the brightness. */
-export function SlashPreview({ mode, interval, brightness, on }: { mode: number; interval: number; brightness: number; on: boolean }) {
+export function SlashPreview({ mode, interval, brightness, on }: { mode: string; interval: number; brightness: number; on: boolean }) {
   const colors = useColors();
   const [frame, setFrame] = useState(0);
   useEffect(() => {
@@ -51,9 +52,9 @@ export function LightingPane() {
   const levels = state.machine?.lighting.keyboardLevels ?? keyboard?.max ?? null;
   return (
     <View style={{ flexDirection: "column", gap: 16 }}>
-      <SectionTitle title="Lid" detail={slash ? "The Slash bar on the lid, as it will play." : undefined} />
-      {slash ? (
+      {slash && (
         <>
+          <SectionTitle title="Lid" detail="The Slash bar on the lid, as it will play." />
           <SlashPreview mode={slash.mode} interval={slash.interval} brightness={slash.brightness} on={slash.enabled} />
           <Group>
             <Row label="Lid lights">
@@ -70,7 +71,7 @@ export function LightingPane() {
             <Row label="Animation" stack>
               <Choices
                 testID="slash-mode"
-                options={SLASH_MODES.map((each) => ({ value: each.mode, label: each.name }))}
+                options={slash.modes.map((mode) => ({ value: mode, label: modeName(mode) }))}
                 value={slash.mode}
                 onChange={(mode) => void live.withSlash((each) => each.setMode(mode))}
               />
@@ -99,8 +100,6 @@ export function LightingPane() {
             ))}
           </Group>
         </>
-      ) : (
-        <Note>{state.machine?.lighting.slash ? "asusd isn't running, so the lid's lights can't be set." : "This machine has no lid lights."}</Note>
       )}
       <SectionTitle title="Keyboard" />
       {keyboard && levels !== null ? (

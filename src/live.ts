@@ -1,7 +1,7 @@
 /**
  * What ASUS Control knows, kept fresh: the machine and its knobs
  * (dashi-hardware's Describe, every few seconds: it is cheap), the sensors,
- * the lid's Slash bar (asusd), and the power source. The popover, the
+ * the lid's Slash bar (dashi-hardware's Slash), and the power source. The popover, the
  * window, and the menu bar item all read this one store. A mode change from
  * anywhere (Fn F5, the menu bar, Automatic) pulls the edited recipe along.
  */
@@ -71,7 +71,8 @@ export class Live {
     const plugged = this.plugged();
     try {
       const machine = await this.hardware.describe();
-      const slash = this.ticks++ % SLASH_EVERY === 0 && machine?.lighting.slash ? await this.slash.read() : this.state.slash;
+      // The bar when Describe says it is there; none otherwise, so the lid row goes away with it.
+      const slash = !machine?.lighting.slash ? null : this.ticks++ % SLASH_EVERY === 0 || !this.state.slash ? await this.slash.read() : this.state.slash;
       this.set({ machine, problem: machine ? null : "dashi-hardware answered with nothing", readings, slash, plugged });
       const now = machine?.knobs["platform-profile"]?.value;
       // The mode or the cable changed (from anywhere): the edited recipe follows.

@@ -1,6 +1,6 @@
 /**
  * ASUS Control: fans, power, and lights for ASUS ROG and TUF laptops, on top
- * of Dashi's power modes (dashi-hardware) and asusd's lid lighting. In the
+ * of Dashi's power modes and its hardware helper (dashi-hardware), lid lights included. In the
  * menu bar: a fan with the processor's temperature; a click opens the
  * popover, a right-click the modes; "Open ASUS Control" opens the window.
  */

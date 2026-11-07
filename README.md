@@ -20,16 +20,16 @@ controls; it draws no ASUS or ROG marks.
 ## How it reaches the hardware
 
 Only through Dashi: dashi-hardware (`dev.dashi.Hardware1`, dashiOS
-`docs/hardware.md`) for every knob, fan curve and the Curve Optimizer, and
-asusd (`xyz.ljones.Asusd`) for the lid's lights, both on the system bus
-through Dashi's sandbox proxy, with `busctl`. It reads the sensors from
-`/sys/class/hwmon` and `/sys/class/power_supply`, read-only. It writes no
-file outside its own home.
+`docs/hardware.md`) for every knob, fan curve, the Curve Optimizer and the
+lid's Slash bar (`Slash`, `SetSlash`), on the system bus through Dashi's
+sandbox proxy, with `busctl`. It reads the sensors from `/sys/class/hwmon`
+and `/sys/class/power_supply`, read-only. It writes no file outside its own
+home. A machine without a Slash bar has no lid row.
 
-`applet.json` asks for exactly that: `hardware.power`, `hardware.lighting`,
-`hardware.fans`, `hardware.tuning` (the last two ask for the password once,
-dashi-hardware's `tune` action), and `dbus.system:xyz.ljones.Asusd`. No
-network, no files, no notifications.
+`applet.json` asks for exactly that: `hardware.power`, `hardware.lighting`
+(the keyboard and lid lights), `hardware.fans`, `hardware.tuning` (the last
+two ask for the password once, dashi-hardware's `tune` action). No network,
+no files, no notifications.
 
 ## Recipes
 
@@ -56,8 +56,8 @@ bus: a fake G14 (`dashi-hardware --sysfs-root data/fixtures/ga403wr serve` in da
 
 ## To check on the machine
 
-- asusd's Slash `Mode` numbers (src/slash.ts) are from asusctl's rog-slash
-  `SlashMode`; check each animation against the lid.
+- The Slash animations (dashi-hardware's ids, ported from asusctl's rog-slash
+  `SlashMode`): check each against the lid, and the preview's likeness of it.
 - The keyboard light's "off after, on battery" waits for Dashi's power
   recipes to carry it (it isn't a dashi-hardware knob).
 

@@ -7,7 +7,7 @@ import { curveSvg, fromPlot, isValidCurve, movePoint, nearest, toPlot } from "..
 import { Hardware, parseDescribe, variantArgs } from "../src/hardware.ts";
 import { edit, effective, pluggedIn, readEdits, restoreDefaults, writeEdits } from "../src/recipes.ts";
 import { History, liveLine, readSensors, sparkline } from "../src/sensors.ts";
-import { SEGMENTS, Slash, SLASH_MODES, slashFrame } from "../src/slash.ts";
+import { parseSlash, SEGMENTS, Slash, SLASH_MODES, slashFrame } from "../src/slash.ts";
 import { fakeBus, G14_DESCRIBE } from "./fake.ts";
 
 test("Describe parses, and what it doesn't say is left out", () => {
@@ -112,15 +112,25 @@ test("recipes: defaults with the edits over them, clamped, kept, and restored", 
   expect(readEdits(path)).toEqual(edited);
 });
 
-test("the Slash bar: its properties through asusd, and a frame per animation", async () => {
-  const { bus, slash: props } = fakeBus();
+test("the Slash bar: through dashi-hardware's Slash and SetSlash, and a frame per animation", async () => {
+  const { bus, calls, slash: props } = fakeBus();
   const slash = new Slash(bus);
   const state = await slash.read();
-  expect(state).toMatchObject({ enabled: true, brightness: 200, mode: 0x26, show: { ShowOnBoot: true, ShowOnBattery: false } });
+  expect(state).toMatchObject({ enabled: true, brightness: 200, mode: "spectrum", show: { showOnBoot: true, showOnBattery: false } });
+  expect(state?.modes).toEqual(["static", "bounce", "flow", "spectrum"]);
+  expect(calls.at(-1)).toEqual(["call", "dev.dashi.Hardware1", "/dev/dashi/Hardware1", "dev.dashi.Hardware1", "Slash"]);
   await slash.setBrightness(400);
-  expect(props.Brightness).toBe(255);
-  await slash.setShow("ShowOnBattery", true);
-  expect(props.ShowOnBattery).toBe(true);
+  expect(calls.at(-1)?.slice(4)).toEqual(["SetSlash", "a{sv}", "1", "brightness", "u", "255"]);
+  expect(props.brightness).toBe(255);
+  await slash.setShow("showOnBattery", true);
+  expect(props.showOnBattery).toBe(true);
+  await slash.setMode("flow");
+  expect(calls.at(-1)?.slice(4)).toEqual(["SetSlash", "a{sv}", "1", "mode", "s", "flow"]);
+  await slash.set({ enabled: false, interval: 3 });
+  expect(calls.at(-1)?.slice(6)).toEqual(["2", "enabled", "b", "false", "interval", "u", "3"]);
+  // No bar, or an answer that makes no sense: nothing to show.
+  expect(parseSlash(JSON.stringify({ available: false, reason: "no-device" }))).toBeNull();
+  expect(parseSlash("not json")).toBeNull();
   for (const { mode } of SLASH_MODES) {
     const frame = slashFrame(mode, 3);
     expect(frame).toHaveLength(SEGMENTS);
