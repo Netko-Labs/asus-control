@@ -1,7 +1,7 @@
 {
   "id": "dev.netko.asus-control",
   "name": "ASUS Control",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "dashi": ">=0.4",
   "entry": "src/main.tsx",
   "summary": "Fans, power and lights for ROG and TUF laptops.",
