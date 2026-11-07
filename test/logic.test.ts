@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { busError, parseAnswer } from "../src/bus.ts";
-import { curveSvg, fromPlot, isValidCurve, movePoint, nearest, toPlot } from "../src/curve.ts";
+import { curveLayers, fromPlot, isValidCurve, movePoint, nearest, toPlot } from "../src/curve.ts";
 import { Hardware, parseDescribe, variantArgs } from "../src/hardware.ts";
 import { edit, effective, pluggedIn, readEdits, restoreDefaults, writeEdits } from "../src/recipes.ts";
 import { formatWhole, History, liveLine, readSensors, sparkline } from "../src/sensors.ts";
@@ -67,7 +67,10 @@ test("a dragged point stays between its neighbours: temperatures rising, duty no
   expect(Math.round(back[1])).toBe(80);
   expect(nearest(points, at.x + 3, at.y - 3, plot)).toBe(3);
   expect(nearest(points, 0, 0, plot)).toBeNull();
-  expect(curveSvg(points, plot, { line: "#000", grid: "#ccc", point: "#000", now: "#f00" }, 3, 54)).toContain("<circle");
+  const layers = curveLayers(points, plot, 3, 54);
+  expect(layers.curve).toContain('r="7"');
+  expect(layers.now).toContain("stroke-dasharray");
+  expect(curveLayers(points, plot, null, null).now).toBe("");
 });
 
 test("sensors from hwmon and the battery, the live line, and an hour of history", () => {

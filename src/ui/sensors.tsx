@@ -6,7 +6,7 @@
 
 import { Group, Note, Row, useColors } from "@dashi/ui";
 import { Svg, Text, View } from "@mirinjs/metal";
-import { formatWhole, sparkline } from "../sensors.ts";
+import { downsample, formatWhole, sparkline } from "../sensors.ts";
 import { SectionTitle, useLive } from "./controls.tsx";
 
 const SPARK = { width: 160, height: 24 };
@@ -18,15 +18,16 @@ export function SensorsPane() {
   return (
     <Group testID="sensors">
       {state.readings.map((reading) => {
-        const path = sparkline(live.history.of(reading.id), SPARK.width, SPARK.height);
+        const path = sparkline(downsample(live.history.of(reading.id), SPARK.width / 2), SPARK.width, SPARK.height, { inset: 1 });
         return (
           <Row key={reading.id} label={reading.label}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
               {path && (
                 <Svg
-                  markup={`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${SPARK.width} ${SPARK.height}"><path d="${path}" fill="none" stroke="${colors.selection}" stroke-width="1.5"/></svg>`}
+                  markup={`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${SPARK.width} ${SPARK.height}"><path d="${path}" fill="none" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/></svg>`}
                   width={SPARK.width}
                   height={SPARK.height}
+                  color={colors.selection}
                 />
               )}
               <View style={{ width: 72, alignItems: "flex-end" }}>

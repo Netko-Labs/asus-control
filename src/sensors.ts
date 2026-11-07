@@ -149,6 +149,17 @@ export function recent(values: readonly number[], minutes: number, everyMs = SAM
   return values.length > count ? values.slice(-count) : values;
 }
 
+/** `values` averaged into at most `count` even buckets: whole-degree samples drawn as a smooth line, not a staircase. */
+export function downsample(values: readonly number[], count: number): number[] {
+  if (values.length <= count || count < 2) return [...values];
+  return Array.from({ length: count }, (_, at) => {
+    const from = Math.floor((at * values.length) / count);
+    const to = Math.max(from + 1, Math.floor(((at + 1) * values.length) / count));
+    const bucket = values.slice(from, to);
+    return bucket.reduce((sum, value) => sum + value, 0) / bucket.length;
+  });
+}
+
 export interface SparkOptions {
   /** The least span drawn, in the values' unit: a steady 54 ± 1 °C stays a calm line, not a zigzag. */
   minSpan?: number;

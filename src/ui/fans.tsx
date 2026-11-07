@@ -7,11 +7,14 @@
 import { Button, Note, Segmented, useColors } from "@dashi/ui";
 import { type Bounds, Svg, Text, View } from "@mirinjs/metal";
 import { useEffect, useRef, useState } from "react";
-import { curveSvg, fromPlot, isValidCurve, movePoint, nearest, percent, type Plot } from "../curve.ts";
+import { curveLayers, fromPlot, isValidCurve, movePoint, nearest, percent, type Plot } from "../curve.ts";
 import type { Point } from "../hardware.ts";
+import { formatWhole } from "../sensors.ts";
 import { useLive } from "./controls.tsx";
 
-const PLOT: Plot = { width: 560, height: 260, pad: 18 };
+/** The plot's height and inset; its width is the tab's. */
+const PLOT_HEIGHT = 260;
+const PLOT_PAD = 18;
 
 export function FansPane() {
   const colors = useColors();
@@ -22,6 +25,8 @@ export function FansPane() {
   const [held, setHeld] = useState<number | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const laid = useRef<Bounds | null>(null);
+  const [width, setWidth] = useState(700);
+  const PLOT: Plot = { width, height: PLOT_HEIGHT, pad: PLOT_PAD };
   const chosen = fan ?? fans[0]?.id ?? null;
 
   useEffect(() => {
@@ -44,13 +49,14 @@ export function FansPane() {
     <View style={{ flexDirection: "column", gap: 12 }}>
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
         <Segmented testID="fan" options={fans.map((each) => ({ value: each.id, label: each.label }))} value={chosen} onChange={setFan} />
-        <Text style={{ fontSize: 12, color: colors.textMuted }}>{[cpu === null ? null : `${cpu} °C`, rpm ? `${rpm} rpm` : null].filter(Boolean).join(" · ")}</Text>
+        <Text style={{ fontSize: 12, color: colors.textMuted }}>{[cpu === null ? null : `${cpu} °C`, rpm ? `${formatWhole(rpm)} rpm` : null].filter(Boolean).join(" · ")}</Text>
       </View>
       {points && (
         <View
           testID="curve"
           onLayout={(bounds) => {
             laid.current = bounds;
+            if (Math.abs(bounds.width - width) >= 1) setWidth(Math.floor(bounds.width));
           }}
           onPointer={(event) => {
             const box = event.bounds ?? laid.current;
@@ -64,9 +70,28 @@ export function FansPane() {
             const [t, p] = fromPlot(x, y, PLOT);
             setPoints(movePoint(points, index, t, p));
           }}
-          style={{ width: PLOT.width, height: PLOT.height, borderRadius: 10, backgroundColor: colors.button }}
+          style={{ height: PLOT.height, borderRadius: 10, backgroundColor: colors.button, position: "relative" }}
         >
-          <Svg markup={curveSvg(points, PLOT, { line: colors.selection, grid: colors.separator, point: colors.selection, now: colors.critical }, held, cpu)} width={PLOT.width} height={PLOT.height} />
+          {(() => {
+            // Metal draws an SVG in one tint, so each color is a layer of its own.
+            const layers = curveLayers(points, PLOT, held, cpu);
+            const at = { position: "absolute" as const, left: 0, top: 0 };
+            return (
+              <>
+                <View style={at}>
+                  <Svg markup={layers.grid} width={PLOT.width} height={PLOT.height} color={colors.separator} />
+                </View>
+                {layers.now && (
+                  <View style={at}>
+                    <Svg markup={layers.now} width={PLOT.width} height={PLOT.height} color={colors.critical} />
+                  </View>
+                )}
+                <View style={at}>
+                  <Svg markup={layers.curve} width={PLOT.width} height={PLOT.height} color={colors.selection} />
+                </View>
+              </>
+            );
+          })()}
         </View>
       )}
       {points && (

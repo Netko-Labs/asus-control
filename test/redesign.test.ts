@@ -1,9 +1,9 @@
 import { expect, test } from "bun:test";
-import { dutyAt, thumbSvg } from "../src/curve.ts";
+import { dutyAt, thumbLayers } from "../src/curve.ts";
 import { dotLevel, levelName, litDots } from "../src/dots.ts";
 import { chosenMode, modeOfProfile, modeOptions } from "../src/modes.ts";
 import { recipeLine } from "../src/recipes.ts";
-import { drawLine, recent, SAMPLE_MS, sparkline } from "../src/sensors.ts";
+import { downsample, drawLine, recent, SAMPLE_MS, sparkline } from "../src/sensors.ts";
 import { isTab, TABS, tabFor } from "../src/tabs.ts";
 import { popoverSize } from "../src/ui/popover.tsx";
 
@@ -28,6 +28,10 @@ test("the temperature line: the last 30 minutes of samples, scaled into its box"
   // A steady temperature stays a calm line in the middle, not a zigzag across the box.
   const steady = points(sparkline([54, 55, 54, 55], 90, 20, { minSpan: 10 }));
   expect(steady.every(([, y]) => y >= 9 && y <= 11)).toBe(true);
+  // Whole degrees averaged into buckets: the trend, not the rounding.
+  expect(downsample([54, 54, 55, 55, 56, 56], 3)).toEqual([54, 55, 56]);
+  expect(downsample([54, 55], 10)).toEqual([54, 55]);
+  expect(downsample(Array.from({ length: 900 }, (_, at) => at), 60)).toHaveLength(60);
   // One sample is no line.
   expect(sparkline([54], 90, 20)).toBe("");
 });
@@ -88,7 +92,8 @@ test("the Overview's lines: the recipe, what draws power, and the fan's place on
   expect(dutyAt(curve, 50)).toBe(100);
   expect(dutyAt(curve, 20)).toBe(50);
   expect(dutyAt(curve, 90)).toBe(150);
-  expect(thumbSvg(curve, { width: 100, height: 40, pad: 4 }, { line: "#888", now: "#357A64" }, 50)).toContain("<circle");
+  expect(thumbLayers(curve, { width: 100, height: 40, pad: 4 }, 50).dot).toContain("<circle");
+  expect(thumbLayers(curve, { width: 100, height: 40, pad: 4 }, null).dot).toBe("");
 });
 
 test("the popover: 272 wide, about 230 tall, a row shorter without a Slash bar", () => {

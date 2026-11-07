@@ -10,7 +10,7 @@ import { Svg, Text, View } from "@mirinjs/metal";
 import type { ReactNode } from "react";
 import { dotLevel, levelName, litDots } from "../dots.ts";
 import { type ModeChoice, chosenMode, modeOptions } from "../modes.ts";
-import { formatWhole, liveNumbers, recent, sparkline } from "../sensors.ts";
+import { downsample, formatWhole, liveNumbers, recent, sparkline } from "../sensors.ts";
 import { modeName } from "../slash.ts";
 import { useLive } from "./controls.tsx";
 import { BATTERY, KEYBOARD, LID, MODE_GLYPHS } from "./glyphs.ts";
@@ -38,18 +38,18 @@ export function LiveNumbers({ size = 13 }: { size?: number }) {
   const { celsius, rpm, watts } = liveNumbers(state.readings);
   const scale = size / 13;
   const parts: ReactNode[] = [];
-  const dot = (key: string) => <Words key={key} text=" · " size={size} />;
-  if (celsius !== null) parts.push(<Figure key="c" text={`${celsius}°`} width={Math.round(32 * scale)} size={size} bold />, <Words key="cw" text=" CPU" size={size} />);
+  const dot = (key: string) => <Words key={key} text="·" size={size} />;
+  if (celsius !== null) parts.push(<Figure key="c" text={`${celsius}°`} width={Math.round(28 * scale)} size={size} bold />, <Words key="cw" text="CPU" size={size} />);
   if (rpm !== null) {
     if (parts.length) parts.push(dot("d1"));
-    parts.push(<Figure key="r" text={formatWhole(rpm)} width={Math.round(38 * scale)} size={size} bold />, <Words key="rw" text=" rpm" size={size} />);
+    parts.push(<Figure key="r" text={formatWhole(rpm)} width={Math.round(36 * scale)} size={size} bold />, <Words key="rw" text="rpm" size={size} />);
   }
   if (watts !== null) {
     if (parts.length) parts.push(dot("d2"));
-    parts.push(<Figure key="w" text={formatWhole(watts)} width={Math.round(22 * scale)} size={size} bold />, <Words key="ww" text=" W" size={size} />);
+    parts.push(<Figure key="w" text={formatWhole(watts)} width={Math.round(18 * scale)} size={size} bold />, <Words key="ww" text="W" size={size} />);
   }
   return (
-    <View testID="live-numbers" style={{ flexDirection: "row", alignItems: "center", minWidth: 0 }}>
+    <View testID="live-numbers" style={{ flexDirection: "row", alignItems: "center", gap: Math.round(4 * scale), minWidth: 0 }}>
       {parts}
     </View>
   );
@@ -59,7 +59,8 @@ export function LiveNumbers({ size = 13 }: { size?: number }) {
 export function TemperatureLine({ width, height, minutes = 30, strokeWidth = 1.5 }: { width: number; height: number; minutes?: number; strokeWidth?: number }) {
   const colors = useColors();
   const { live } = useLive();
-  const path = sparkline(recent(live.history.of("cpu"), minutes), width, height, { minSpan: 8, inset: strokeWidth });
+  // A point every 4 px or so: the samples are whole degrees, and averaging them draws the trend, not the rounding.
+  const path = sparkline(downsample(recent(live.history.of("cpu"), minutes), Math.max(2, Math.round(width / 4))), width, height, { minSpan: 8, inset: strokeWidth });
   return (
     <View testID="temperature-line" style={{ width, height, flexShrink: 0 }}>
       {path && (
@@ -112,7 +113,7 @@ export function ModeTiles() {
             }}
           >
             <Svg markup={MODE_GLYPHS[option.id] ?? ""} size={16} color={ink} />
-            <Text numberOfLines={1} style={{ fontSize: 11, fontWeight: on ? "semibold" : "normal", color: on ? "#ffffff" : colors.textMuted }}>
+            <Text numberOfLines={1} style={{ fontSize: 11, fontWeight: on ? "semibold" : "normal", textAlign: "center", color: on ? "#ffffff" : colors.textMuted }}>
               {option.label}
             </Text>
           </View>
@@ -153,13 +154,15 @@ function QuickRow({ glyph, label, detail, children, inset = 4 }: { glyph?: strin
   return (
     <View style={{ height: 34, flexShrink: 0, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: inset }}>
       {glyph && <Svg markup={glyph} size={16} color={colors.textMuted} />}
-      <View style={{ flex: 1, flexDirection: "row", minWidth: 0 }}>
-        <Text numberOfLines={1} style={{ fontSize: 13, color: colors.text }}>
-          {label}
-        </Text>
+      <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 4, minWidth: 0 }}>
+        <View style={{ flexShrink: 0 }}>
+          <Text numberOfLines={1} style={{ fontSize: 13, color: colors.text }}>
+            {label}
+          </Text>
+        </View>
         {detail ? (
-          <View style={{ flexShrink: 1, minWidth: 0 }}>
-            <Text numberOfLines={1} style={{ fontSize: 13, color: colors.textMuted }}>{` · ${detail}`}</Text>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text numberOfLines={1} style={{ fontSize: 13, color: colors.textMuted }}>{`· ${detail}`}</Text>
           </View>
         ) : null}
       </View>
@@ -221,8 +224,10 @@ export function Box({ title, testID, children }: { title: string; testID: string
 export function Link({ label, testID, onPress }: { label: string; testID: string; onPress: () => void }) {
   const colors = useColors();
   return (
-    <View testID={testID} focusable accessibilityRole="link" accessibilityLabel={label} onPress={onPress} style={{ borderRadius: 4, focusRingColor: colors.focusRing }}>
-      <Text style={{ fontSize: 12, color: colors.accentInk }}>{label}</Text>
+    <View testID={testID} focusable accessibilityRole="link" accessibilityLabel={label} onPress={onPress} style={{ flexShrink: 0, borderRadius: 4, focusRingColor: colors.focusRing }}>
+      <Text numberOfLines={1} style={{ fontSize: 12, color: colors.accentInk }}>
+        {label}
+      </Text>
     </View>
   );
 }

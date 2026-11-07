@@ -10,7 +10,7 @@
 import { Segmented, useColors } from "@dashi/ui";
 import { type Bounds, Svg, Text, View } from "@mirinjs/metal";
 import { useEffect, useState } from "react";
-import { thumbSvg } from "../curve.ts";
+import { thumbLayers } from "../curve.ts";
 import type { Point } from "../hardware.ts";
 import { chosenMode, modeOptions } from "../modes.ts";
 import { effective, recipeLine } from "../recipes.ts";
@@ -92,15 +92,23 @@ function FansBox({ onGo }: { onGo: (place: string) => void }) {
   }, [fan?.id, fan?.curve, live]);
   const celsius = liveNumbers(state.readings).celsius;
   const plot = { width, height: 72, pad: 6 };
+  const layers = points ? thumbLayers(points, plot, celsius) : null;
   return (
     <Box title="Fans" testID="box:fans">
-      <View onLayout={(bounds) => measure(bounds)} style={{ height: 72 }}>
-        {points && <Svg markup={thumbSvg(points, plot, { line: colors.textMuted, now: colors.selection }, celsius)} width={width} height={72} />}
+      <View testID="fan-thumb" onLayout={(bounds) => measure(bounds)} style={{ height: 72, position: "relative" }}>
+        {layers && <Svg markup={layers.line} width={width} height={72} color={colors.textMuted} />}
+        {layers?.dot && (
+          <View style={{ position: "absolute", left: 0, top: 0 }}>
+            <Svg markup={layers.dot} width={width} height={72} color={colors.selection} />
+          </View>
+        )}
       </View>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-        <Text numberOfLines={1} style={{ fontSize: 12, color: colors.textMuted }}>
-          {fan ? [fan.label, fan.rpm ? `${formatWhole(fan.rpm)} rpm` : null].filter(Boolean).join(" · ") : "No fans to show"}
-        </Text>
+        <View style={{ flexShrink: 1, minWidth: 0 }}>
+          <Text numberOfLines={1} style={{ fontSize: 12, color: colors.textMuted }}>
+            {fan ? [fan.label, fan.rpm ? `${formatWhole(fan.rpm)} rpm` : null].filter(Boolean).join(" · ") : "No fans to show"}
+          </Text>
+        </View>
         {fan?.curve && <Link label="Edit in Fans" testID="go:fans" onPress={() => onGo("fans")} />}
       </View>
     </Box>
