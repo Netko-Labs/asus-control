@@ -2,7 +2,8 @@
  * ASUS Control: fans, power, and lights for ASUS ROG and TUF laptops, on top
  * of Dashi's power modes and its hardware helper (dashi-hardware), lid lights included. In the
  * menu bar: a fan with the processor's temperature; a click opens the
- * popover, a right-click the modes; "Open ASUS Control" opens the window.
+ * popover, a right-click the modes; the popover's ⋯ and "Open ASUS
+ * Control…" open the window.
  */
 
 import { appearance, defineApplet, metalHost } from "@dashi/applet";
@@ -15,7 +16,7 @@ import { MODES } from "./recipes.ts";
 import { Slash } from "./slash.ts";
 import { LiveContext } from "./ui/controls.tsx";
 import { FAN } from "./ui/glyphs.ts";
-import { AsusPopover, POPOVER_SIZE } from "./ui/popover.tsx";
+import { AsusPopover, popoverSize } from "./ui/popover.tsx";
 import { AsusWindow, WINDOW_SIZE } from "./ui/window.tsx";
 
 const APP_ID = "dev.netko.asus-control";
@@ -27,6 +28,15 @@ const bus = new SystemBus();
 const live = new Live(new Hardware(bus), new Slash(bus));
 
 let window: NativeHostTransport | null = null;
+
+/** The popover's rows under the modes: the keyboard, the lid (with a Slash bar), the charge limit. */
+function quickRows(): number {
+  const state = live.getSnapshot();
+  const knobs = state.machine?.knobs ?? {};
+  const rows = [knobs["kbd-backlight"] !== undefined, state.slash !== null, knobs["charge-limit"] !== undefined].filter(Boolean).length;
+  // Before the machine is known, room for all three.
+  return state.machine ? rows : 3;
+}
 
 function openWindow(): void {
   if (window) return;
@@ -69,7 +79,13 @@ const applet = defineApplet<ItemState>({
     }
   },
   popover: {
-    ...POPOVER_SIZE,
+    // Read when the popover is asked for: a row less without a Slash bar.
+    get width() {
+      return popoverSize(quickRows()).width;
+    },
+    get height() {
+      return popoverSize(quickRows()).height;
+    },
     component: ({ close }) => (
       <LiveContext.Provider value={live}>
         <AsusPopover

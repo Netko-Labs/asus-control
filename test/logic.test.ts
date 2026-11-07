@@ -6,7 +6,7 @@ import { busError, parseAnswer } from "../src/bus.ts";
 import { curveSvg, fromPlot, isValidCurve, movePoint, nearest, toPlot } from "../src/curve.ts";
 import { Hardware, parseDescribe, variantArgs } from "../src/hardware.ts";
 import { edit, effective, pluggedIn, readEdits, restoreDefaults, writeEdits } from "../src/recipes.ts";
-import { History, liveLine, readSensors, sparkline } from "../src/sensors.ts";
+import { formatWhole, History, liveLine, readSensors, sparkline } from "../src/sensors.ts";
 import { parseSlash, SEGMENTS, Slash, SLASH_MODES, slashFrame } from "../src/slash.ts";
 import { fakeBus, G14_DESCRIBE } from "./fake.ts";
 
@@ -79,7 +79,7 @@ test("sensors from hwmon and the battery, the live line, and an hour of history"
   };
   hw("hwmon8", { name: "k10temp", temp1_input: "54250" });
   hw("hwmon9", { name: "asus", fan1_input: "2300", fan1_label: "cpu_fan", fan2_input: "2600", fan2_label: "gpu_fan" });
-  hw("hwmon7", { name: "amdgpu", temp1_input: "48000" });
+  hw("hwmon7", { name: "amdgpu", temp1_input: "48000", power1_average: "38412000" });
   mkdirSync(join(root, "power_supply/BAT1"), { recursive: true });
   writeFileSync(join(root, "power_supply/BAT1/type"), "Battery\n");
   writeFileSync(join(root, "power_supply/BAT1/power_now"), "12345678\n");
@@ -90,7 +90,10 @@ test("sensors from hwmon and the battery, the live line, and an hour of history"
   expect(readings.find((reading) => reading.id === "cpu")?.value).toBe(54);
   expect(readings.find((reading) => reading.id === "fan1")).toMatchObject({ label: "CPU fan", value: 2300 });
   expect(readings.find((reading) => reading.id === "battery")?.value).toBe(12.3);
-  expect(liveLine(readings)).toBe("CPU 54 °C · 2300 rpm");
+  expect(readings.find((reading) => reading.id === "package")).toMatchObject({ value: 38, unit: "W" });
+  expect(liveLine(readings)).toBe(`54° CPU · ${formatWhole(2300)} rpm · 38 W`);
+  // Without the package's power, the battery's draw stands in.
+  expect(liveLine(readings.filter((reading) => reading.id !== "package"))).toBe(`54° CPU · ${formatWhole(2300)} rpm · 12 W`);
   expect(pluggedIn(join(root, "power_supply"))).toBe(false);
   const history = new History(3);
   for (let n = 0; n < 5; n++) history.add(readings);

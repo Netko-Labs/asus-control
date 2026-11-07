@@ -1,13 +1,14 @@
 /**
- * Lighting (dashiOS spec, ASUS Control F): the lid's Slash bar drawn as it
- * will play, its animation, speed, brightness and when it shows; the
- * keyboard's level. Both through dashi-hardware (Slash, kbd-backlight). With
- * no Slash bar, there is no lid section.
+ * Lighting (dashiOS spec, ASUS Control F): the keyboard's level; the lid's
+ * Slash bar drawn as it will play, its animation, brightness, speed and
+ * when it shows. Both through dashi-hardware (kbd-backlight, Slash). With no
+ * Slash bar, there is no lid section.
  */
 
-import { Choices, Group, Note, Row, Segmented, useColors } from "@dashi/ui";
+import { Choices, Group, Note, Row, Segmented, Switch, useColors } from "@dashi/ui";
 import { View } from "@mirinjs/metal";
 import { useEffect, useState } from "react";
+import { levelName } from "../dots.ts";
 import { frameMs, modeName, SEGMENTS, SHOW_FLAGS, slashFrame } from "../slash.ts";
 import { SectionTitle, SliderValue, useLive } from "./controls.tsx";
 
@@ -43,30 +44,35 @@ export function SlashPreview({ mode, interval, brightness, on }: { mode: string;
   );
 }
 
-const LEVEL_NAMES = ["Off", "Low", "Medium", "High"];
-
 export function LightingPane() {
   const { live, state } = useLive();
   const slash = state.slash;
   const keyboard = state.machine?.knobs["kbd-backlight"];
   const levels = state.machine?.lighting.keyboardLevels ?? keyboard?.max ?? null;
   return (
-    <View style={{ flexDirection: "column", gap: 16 }}>
+    <View style={{ flexDirection: "column", gap: 14 }}>
+      <SectionTitle title="Keyboard" />
+      {keyboard && levels !== null ? (
+        <Group>
+          <Row label="Brightness" detail="Fn F4 changes it too.">
+            <Segmented
+              testID="kbd-level"
+              options={Array.from({ length: levels + 1 }, (_, level) => ({ value: level, label: levelName(level) }))}
+              value={Number(keyboard.value)}
+              onChange={(value) => void live.setKnob("kbd-backlight", value)}
+            />
+          </Row>
+        </Group>
+      ) : (
+        <Note>This keyboard has no light Dashi can set.</Note>
+      )}
       {slash && (
         <>
           <SectionTitle title="Lid" detail="The Slash bar on the lid, as it will play." />
           <SlashPreview mode={slash.mode} interval={slash.interval} brightness={slash.brightness} on={slash.enabled} />
           <Group>
             <Row label="Lid lights">
-              <Segmented
-                testID="slash-on"
-                options={[
-                  { value: "on", label: "On" },
-                  { value: "off", label: "Off" },
-                ]}
-                value={slash.enabled ? "on" : "off"}
-                onChange={(value) => void live.withSlash((each) => each.setEnabled(value === "on"))}
-              />
+              <Switch testID="slash-on" on={slash.enabled} onChange={(on) => void live.withSlash((each) => each.setEnabled(on))} />
             </Row>
             <Row label="Animation" stack>
               <Choices
@@ -87,34 +93,11 @@ export function LightingPane() {
           <Group>
             {SHOW_FLAGS.map((flag) => (
               <Row key={flag.property} label={flag.label}>
-                <Segmented
-                  testID={`slash:${flag.property}`}
-                  options={[
-                    { value: "on", label: "On" },
-                    { value: "off", label: "Off" },
-                  ]}
-                  value={slash.show[flag.property] ? "on" : "off"}
-                  onChange={(value) => void live.withSlash((each) => each.setShow(flag.property, value === "on"))}
-                />
+                <Switch testID={`slash:${flag.property}`} on={slash.show[flag.property]} onChange={(on) => void live.withSlash((each) => each.setShow(flag.property, on))} />
               </Row>
             ))}
           </Group>
         </>
-      )}
-      <SectionTitle title="Keyboard" />
-      {keyboard && levels !== null ? (
-        <Group>
-          <Row label="Brightness" detail="Fn F4 changes it too.">
-            <Segmented
-              testID="kbd-level"
-              options={Array.from({ length: levels + 1 }, (_, level) => ({ value: level, label: LEVEL_NAMES[level] ?? String(level) }))}
-              value={Number(keyboard.value)}
-              onChange={(value) => void live.setKnob("kbd-backlight", value)}
-            />
-          </Row>
-        </Group>
-      ) : (
-        <Note>This keyboard has no light Dashi can set.</Note>
       )}
     </View>
   );

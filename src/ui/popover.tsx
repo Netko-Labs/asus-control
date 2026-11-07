@@ -1,110 +1,77 @@
 /**
- * The popover under the menu bar item (dashiOS spec, ASUS Control A): one
- * column of the everyday controls, in the window's order, with a live line
- * (the processor's temperature, a fan), then "Open ASUS Control".
+ * The popover under the menu bar item (mockups, "ASUS Control, redesigned"):
+ * no title row, since the item is the title. The header is the live line
+ * (the processor's temperature, a fan, the package's watts) with ⋯ at the
+ * right for the window; under it the last 30 minutes of temperature; the
+ * modes as four tiles; then a row each for the keyboard, the lid's Slash bar
+ * (only when there is one) and the charge limit.
  */
 
-import { Segmented, useColors } from "@dashi/ui";
-import { Text, View } from "@mirinjs/metal";
-import { MODES } from "../recipes.ts";
+import { useColors } from "@dashi/ui";
+import { Svg, Text, View } from "@mirinjs/metal";
 import { liveLine } from "../sensors.ts";
-import { modeName } from "../slash.ts";
 import { useLive } from "./controls.tsx";
+import { FAN, MORE } from "./glyphs.ts";
+import { LiveNumbers, ModeTiles, QuickRows, TemperatureLine } from "./parts.tsx";
 
-export const POPOVER_SIZE = { width: 300, height: 340 } as const;
+const WIDTH = 272;
+const PAD = 8;
+const ROW = 34;
 
-function Line({ label, children }: { label: string; children: React.ReactNode }) {
-  const colors = useColors();
-  return (
-    <View style={{ flexDirection: "column", gap: 6 }}>
-      <Text style={{ fontSize: 11, fontWeight: "semibold", color: colors.textMuted }}>{label}</Text>
-      {children}
-    </View>
-  );
+/** The popover's size: three rows with a Slash bar, two without. */
+export function popoverSize(rows: number): { width: number; height: number } {
+  // padding, header 30, the line 22 with 4 above and 6 below, tiles 46, 6, the rows, padding.
+  return { width: WIDTH, height: PAD + 30 + 4 + 22 + 6 + 46 + 6 + rows * ROW + PAD };
 }
 
-const LEVEL_NAMES = ["Off", "Low", "Medium", "High"];
+export const POPOVER_SIZE = popoverSize(3);
 
 export function AsusPopover({ onOpenWindow }: { onOpenWindow: () => void }) {
   const colors = useColors();
-  const { live, state } = useLive();
-  const knobs = state.machine?.knobs ?? {};
-  const mode = knobs["platform-profile"];
-  const charge = knobs["charge-limit"];
-  const keyboard = knobs["kbd-backlight"];
-  const levels = state.machine?.lighting.keyboardLevels ?? keyboard?.max ?? null;
+  const { state } = useLive();
+  const line = liveLine(state.readings);
+  const quiet = state.problem ?? (line ? null : state.machine ? "No temperature or fan readings here" : "Reading the sensors…");
   return (
     <View
       testID="asus-popover"
       style={{
         flex: 1,
         flexDirection: "column",
-        gap: 12,
-        padding: 14,
+        padding: PAD,
         borderRadius: 12,
         backgroundColor: colors.launcher,
         borderWidth: 1,
         borderColor: colors.dockBorder,
       }}
     >
-      <View style={{ flexDirection: "column", gap: 1 }}>
-        <Text style={{ fontSize: 14, fontWeight: "bold", color: colors.text }}>ASUS Control</Text>
-        <View testID="live-line">
-          <Text style={{ fontSize: 12, color: colors.textMuted }}>{state.problem ?? (liveLine(state.readings) || (state.machine ? "No temperature or fan readings here" : "Reading the sensors…"))}</Text>
+      <View testID="live-line" accessibilityRole="status" accessibilityLabel={quiet ?? line} style={{ height: 30, flexShrink: 0, flexDirection: "row", alignItems: "center", gap: 6, paddingLeft: 4 }}>
+        <Svg markup={FAN} size={16} color={colors.textMuted} />
+        <View style={{ flex: 1, minWidth: 0 }}>
+          {quiet ? (
+            <Text numberOfLines={1} style={{ fontSize: 12, color: colors.textMuted }}>
+              {quiet}
+            </Text>
+          ) : (
+            <LiveNumbers />
+          )}
+        </View>
+        <View
+          testID="open-window"
+          focusable
+          accessibilityRole="button"
+          accessibilityLabel="Open ASUS Control…"
+          onPress={onOpenWindow}
+          style={{ width: 26, height: 26, borderRadius: 7, alignItems: "center", justifyContent: "center", hoverBackgroundColor: colors.button, focusRingColor: colors.focusRing }}
+        >
+          <Svg markup={MORE} size={16} color={colors.textMuted} />
         </View>
       </View>
-      {mode && (
-        <Segmented
-          testID="mode"
-          options={MODES.filter((each) => mode.choices?.includes(each.id) ?? true).map((each) => ({ value: each.id, label: each.label }))}
-          value={String(mode.value)}
-          onChange={(value) => void live.setMode(value)}
-        />
-      )}
-      {charge && (
-        <Line label="Battery">
-          <Segmented
-            testID="charge"
-            options={[
-              { value: 80, label: "80%" },
-              { value: 100, label: "100%" },
-            ]}
-            value={Number(charge.value) >= 100 ? 100 : 80}
-            onChange={(value) => void live.setKnob("charge-limit", value)}
-          />
-        </Line>
-      )}
-      {(keyboard || state.slash) && (
-        <Line label="Lights">
-          {keyboard && levels !== null && (
-            <Segmented
-              testID="keyboard"
-              options={Array.from({ length: levels + 1 }, (_, level) => ({ value: level, label: LEVEL_NAMES[level] ?? String(level) }))}
-              value={Number(keyboard.value)}
-              onChange={(value) => void live.setKnob("kbd-backlight", value)}
-            />
-          )}
-          {state.slash && (
-            <Segmented
-              testID="lid"
-              options={[
-                { value: "off", label: "Lid off" },
-                { value: "on", label: modeName(state.slash.mode) },
-              ]}
-              value={state.slash.enabled ? "on" : "off"}
-              onChange={(value) => void live.withSlash((slash) => slash.setEnabled(value === "on"))}
-            />
-          )}
-        </Line>
-      )}
-      <View style={{ marginTop: "auto", height: 1, backgroundColor: colors.separator }} />
-      <View
-        testID="open-window"
-        onPress={onOpenWindow}
-        style={{ height: 28, borderRadius: 6, paddingHorizontal: 8, justifyContent: "center", hoverBackgroundColor: colors.switcherSelection }}
-      >
-        <Text style={{ fontSize: 13, color: colors.text }}>Open ASUS Control…</Text>
+      <View style={{ marginTop: 4, marginBottom: 6, paddingHorizontal: 4 }}>
+        <TemperatureLine width={WIDTH - 2 - PAD * 2 - 8} height={22} />
       </View>
+      <ModeTiles />
+      <View style={{ height: 6, flexShrink: 0 }} />
+      <QuickRows />
     </View>
   );
 }

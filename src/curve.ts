@@ -88,3 +88,34 @@ export function curveSvg(points: readonly Point[], plot: Plot, colors: { line: s
   const live = now === null ? "" : `<path d="M${toPlot([now, 0], plot).x.toFixed(1)} ${plot.pad}V${plot.height - plot.pad}" stroke="${colors.now}" stroke-width="1.5" stroke-dasharray="4 3"/>`;
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${plot.width} ${plot.height}">${grid.join("")}${live}<path d="${path}" fill="none" stroke="${colors.line}" stroke-width="2.5" stroke-linejoin="round"/>${dots}</svg>`;
 }
+
+/** The duty the curve gives at `temperature`, between its points (flat past either end). */
+export function dutyAt(points: readonly Point[], temperature: number): number {
+  const first = points[0];
+  const last = points.at(-1);
+  if (!first || !last) return 0;
+  if (temperature <= first[0]) return first[1];
+  if (temperature >= last[0]) return last[1];
+  for (let at = 1; at < points.length; at++) {
+    const [t1, p1] = points[at] as Point;
+    const [t0, p0] = points[at - 1] as Point;
+    if (temperature <= t1) return p0 + ((temperature - t0) / (t1 - t0 || 1)) * (p1 - p0);
+  }
+  return last[1];
+}
+
+/** A small picture of the curve (the Overview's): the line, and a dot where the fan is now. */
+export function thumbSvg(points: readonly Point[], plot: Plot, colors: { line: string; now: string }, now: number | null): string {
+  const path = points
+    .map((point, at) => {
+      const { x, y } = toPlot(point, plot);
+      return `${at === 0 ? "M" : "L"}${x.toFixed(1)} ${y.toFixed(1)}`;
+    })
+    .join("");
+  const dot = now === null || points.length === 0 ? "" : (() => {
+    const t = Math.max(TEMP_RANGE[0], Math.min(TEMP_RANGE[1], now));
+    const { x, y } = toPlot([t, dutyAt(points, t)], plot);
+    return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="4" fill="${colors.now}"/>`;
+  })();
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${plot.width} ${plot.height}"><path d="${path}" fill="none" stroke="${colors.line}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>${dot}</svg>`;
+}

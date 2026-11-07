@@ -1,45 +1,28 @@
 /**
- * ASUS Control's window (dashiOS spec, ASUS Control C), shaped like Settings:
- * a sidebar of panes and the pane. The Curve Optimizer's countdown is a
- * sheet over it.
+ * ASUS Control's window: no sidebar; four tabs in the title bar's one row,
+ * beside the window's controls (VS-1, VS-4): Overview, Fans, Lighting,
+ * Advanced. A link inside a tab names a place, and tabs.ts says which tab
+ * shows it. The Curve Optimizer's countdown is a sheet over it.
  */
 
-import { AppWindow, Note, SidebarItem, SidebarSection } from "@dashi/ui";
-import { ScrollView } from "@mirinjs/metal";
+import { AppWindow, Note, Segmented, useTitleBarInset } from "@dashi/ui";
+import { ScrollView, View } from "@mirinjs/metal";
 import { useState } from "react";
-import { AdvancedPane, KeepSheet, KEEP_SECONDS } from "./advanced.tsx";
+import { type TabId, TABS, tabFor } from "../tabs.ts";
+import { AdvancedTab, KeepSheet, KEEP_SECONDS } from "./advanced.tsx";
 import { useLive } from "./controls.tsx";
 import { FansPane } from "./fans.tsx";
-import { FAN, GLYPHS } from "./glyphs.ts";
 import { LightingPane } from "./lighting.tsx";
-import { BatteryPane, PowerPane } from "./power.tsx";
-import { KeysPane, SensorsPane } from "./sensors.tsx";
+import { OverviewTab } from "./overview.tsx";
 
-export const WINDOW_SIZE = { width: 900, height: 640 } as const;
+export const WINDOW_SIZE = { width: 760, height: 480 } as const;
 
-const PANES = [
-  { id: "power", label: "Power", tint: "#3b8fd0" },
-  { id: "fans", label: "Fans", tint: "#2f9d8f" },
-  { id: "battery", label: "Battery", tint: "#4f8f4f" },
-  { id: "lighting", label: "Lighting", tint: "#c7892b" },
-  { id: "sensors", label: "Sensors", tint: "#d0527f" },
-  { id: "keys", label: "Keys", tint: "#7a7a82" },
-  { id: "advanced", label: "Advanced", tint: "#6E56CF" },
-] as const;
-
-export type PaneId = (typeof PANES)[number]["id"];
-
-export function AsusWindow({ start = "power" }: { start?: PaneId }) {
+/** `start`: a tab, or a place an old pane or a link names ("battery" opens Advanced). */
+export function AsusWindow({ start = "overview" }: { start?: string }) {
   const { live, state } = useLive();
-  const [pane, setPane] = useState<PaneId>(start);
+  const inset = useTitleBarInset();
+  const [tab, setTab] = useState<TabId>(tabFor(start));
   const [ask, setAsk] = useState<{ token: string; previous: number } | null>(null);
-  const sidebar = (
-    <SidebarSection>
-      {PANES.map((each) => (
-        <SidebarItem key={each.id} testID={`pane:${each.id}`} label={each.label} tile={{ glyph: GLYPHS[each.id] ?? FAN, tint: each.tint }} selected={pane === each.id} onPress={() => setPane(each.id)} />
-      ))}
-    </SidebarSection>
-  );
   const keep = (): void => {
     const current = ask;
     setAsk(null);
@@ -52,18 +35,21 @@ export function AsusWindow({ start = "power" }: { start?: PaneId }) {
     if (current) void live.hardware.setCurveOptimizer(current.previous, [], 0).catch(() => {});
   };
   const overlay = ask ? <KeepSheet seconds={KEEP_SECONDS} onKeep={keep} onRevert={revert} /> : undefined;
-  const title = PANES.find((each) => each.id === pane)?.label;
+  const tabs = (
+    <View style={{ flex: 1, flexDirection: "row", justifyContent: "center" }}>
+      <Segmented testID="tabs" options={TABS.map((each) => ({ value: each.id, label: each.label }))} value={tab} onChange={setTab} />
+    </View>
+  );
+  // As wide as the controls' corner, so the tabs sit in the window's middle.
+  const balance = <View style={{ width: Math.max(0, inset.leading + 2) }} />;
   return (
-    <AppWindow title="ASUS Control" subtitle={title} sidebar={sidebar} overlay={overlay}>
-      <ScrollView testID={`body:${pane}`} style={{ flex: 1, flexDirection: "column", gap: 16, padding: 24 }}>
+    <AppWindow title="ASUS Control" center={tabs} toolbar={balance} overlay={overlay}>
+      <ScrollView testID={`body:${tab}`} style={{ flex: 1, flexDirection: "column", gap: 16, padding: 16 }}>
         {state.failure && <Note>{state.failure}</Note>}
-        {pane === "power" && <PowerPane />}
-        {pane === "fans" && <FansPane />}
-        {pane === "battery" && <BatteryPane />}
-        {pane === "lighting" && <LightingPane />}
-        {pane === "sensors" && <SensorsPane />}
-        {pane === "keys" && <KeysPane />}
-        {pane === "advanced" && <AdvancedPane onAsk={setAsk} />}
+        {tab === "overview" && <OverviewTab onGo={(place) => setTab(tabFor(place))} />}
+        {tab === "fans" && <FansPane />}
+        {tab === "lighting" && <LightingPane />}
+        {tab === "advanced" && <AdvancedTab onAsk={setAsk} />}
       </ScrollView>
     </AppWindow>
   );

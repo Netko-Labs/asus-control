@@ -38,38 +38,67 @@ async function mount(element: (live: Live) => ReactElement, describe?: unknown) 
   return { root, press, calls, live };
 }
 
-test("the popover: the live line, the mode, the battery, the lights, then the window", async () => {
+const setCalls = (calls: string[][], knob: string): string[] => calls.filter((call) => call[4] === "Set" && call[6] === knob).map((call) => call[8] ?? "");
+
+test("the popover: the live line, the temperature line, the modes as tiles, then the three rows", async () => {
   let opened = 0;
-  const { root, press, calls } = await mount(() => <AsusPopover onOpenWindow={() => opened++} />);
+  const { root, press, calls, live } = await mount(() => <AsusPopover onOpenWindow={() => opened++} />);
   const tree = root.lastTree() ?? "";
-  expect(tree).toContain("CPU 54 °C · 2300 rpm");
-  expect(tree).toContain("Quiet");
-  expect(tree).toContain("80%");
-  expect(tree).toContain("Spectrum");
+  expect(tree).toContain("54°");
+  // No title row: the menu bar item is the title.
+  expect(tree).not.toContain('["ASUS Control"]');
+  for (const words of ["Automatic", "Quiet", "Balanced", "Turbo", "Keyboard", "Lid", "Spectrum", "Stop charging at 80%"]) expect(tree).toContain(words);
+  expect(root.nodeId("temperature-line")).toBeDefined();
   await press("mode:performance");
-  expect(calls.some((call) => call[4] === "Set" && call[6] === "platform-profile" && call[8] === "performance")).toBe(true);
+  expect(setCalls(calls, "platform-profile")).toEqual(["performance"]);
+  // Automatic is Dashi's, out of an applet's reach for now: the tile takes no press.
+  await press("mode:automatic");
+  expect(setCalls(calls, "platform-profile")).toEqual(["performance"]);
+  // The keyboard is at 1: the third dot is High, the first again is off.
+  await press("keyboard:3");
+  await press("keyboard:1");
+  expect(setCalls(calls, "kbd-backlight")).toEqual(["3", "0"]);
+  await press("charge");
+  expect(setCalls(calls, "charge-limit")).toEqual(["100"]);
   await press("open-window");
   expect(opened).toBe(1);
+  expect(live.history.of("cpu").length).toBeGreaterThan(0);
   root.unmount();
 });
 
-test("the window: every pane draws, and an undervolt waits for Keep", async () => {
+test("the window: four tabs in the title bar, each draws, and the links go where they say", async () => {
   const { root, press, calls } = await mount(() => <AsusWindow />);
-  for (const pane of ["power", "fans", "battery", "lighting", "sensors", "keys", "advanced"]) {
-    await press(`pane:${pane}`);
-    expect(root.nodeId(`body:${pane}`)).toBeDefined();
-  }
-  await press("pane:fans");
-  expect(root.nodeId("curve")).toBeDefined();
-  await press("pane:lighting");
+  expect(root.nodeId("window-sidebar")).toBeUndefined();
+  expect(root.nodeId("tabs")).toBeDefined();
+  expect(root.nodeId("body:overview")).toBeDefined();
+  for (const box of ["box:now", "box:power", "box:fans", "box:lighting"]) expect(root.nodeId(box)).toBeDefined();
+  expect(root.lastTree()).toContain("Balanced plugged in: 55 W.");
+  expect(root.nodeId("sensors")).toBeDefined();
+  await press("go:limits");
+  expect(root.nodeId("body:advanced")).toBeDefined();
+  for (const words of ["Recipes", "Sustained power", "Try for 20 Seconds", "Charge limit", "Fn F5"]) expect(root.lastTree()).toContain(words);
+  await press("tabs:lighting");
   expect(root.nodeId("slash-preview")).toBeDefined();
-  await press("pane:power");
-  expect(root.lastTree()).toContain("Sustained power");
-  await press("pane:advanced");
-  expect(root.lastTree()).toContain("Try for 20 Seconds");
+  expect(root.nodeId("kbd-level")).toBeDefined();
+  await press("slash:showOnBattery");
+  expect(calls.some((call) => call[4] === "SetSlash" && call.includes("showOnBattery") && call.includes("true"))).toBe(true);
+  await press("tabs:overview");
+  await press("go:fans");
+  expect(root.nodeId("body:fans")).toBeDefined();
+  expect(root.nodeId("curve")).toBeDefined();
+  await press("tabs:advanced");
+  await press("boost");
+  expect(setCalls(calls, "boost")).toEqual(["false"]);
   root.unmount();
   // The countdown itself: a value applied with 20 seconds to keep it, kept with its token.
   expect(calls.some((call) => call[4] === "CurveOptimizer")).toBe(true);
+});
+
+test("an old pane's name opens the tab that holds it now", async () => {
+  const { root } = await mount(() => <AsusWindow start="battery" />);
+  expect(root.nodeId("body:advanced")).toBeDefined();
+  expect(root.nodeId("battery")).toBeDefined();
+  root.unmount();
 });
 
 test("an edited recipe follows the mode when it changes from anywhere", async () => {
@@ -87,7 +116,8 @@ test("without a Slash bar there is no lid row", async () => {
   expect(popover.calls.some((call) => call[4] === "Slash")).toBe(false);
   popover.root.unmount();
   const window = await mount(() => <AsusWindow />, noBar);
-  await window.press("pane:lighting");
+  expect(window.root.nodeId("lid")).toBeUndefined();
+  await window.press("tabs:lighting");
   expect(window.root.nodeId("slash-preview")).toBeUndefined();
   expect(window.root.lastTree()).not.toContain("Lid");
   window.root.unmount();
@@ -95,7 +125,7 @@ test("without a Slash bar there is no lid row", async () => {
 
 test("the lid's switch goes to dashi-hardware", async () => {
   const { root, press, calls } = await mount(() => <AsusPopover onOpenWindow={() => {}} />);
-  await press("lid:off");
+  await press("lid");
   expect(calls.some((call) => call[4] === "SetSlash" && call.includes("enabled") && call.includes("false"))).toBe(true);
   root.unmount();
 });
