@@ -2,7 +2,7 @@
   "id": "dev.netko.asus-control",
   "name": "ASUS Control",
   "version": "0.2.0",
-  "dashi": ">=0.4",
+  "dashi": ">=0.5",
   "entry": "src/main.tsx",
   "summary": "Fans, power and lights for ROG and TUF laptops.",
   "description": "Power modes in sync with Fn F5, their recipes plugged in and on battery, fan curves you drag, the lid's Slash bar previewed as it will play, the keyboard light, sensors with an hour of history, and the advanced controls: the Curve Optimizer with a countdown, power limits, boost and the graphics card's limits. On top of Dashi's own power modes, not beside them.",

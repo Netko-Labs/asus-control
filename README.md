@@ -99,11 +99,9 @@ mode picked here while Dashi is on Automatic holds until the cable
 changes, as Fn F5 does), the Automatic tile is shown and can't be pressed,
 and the window's mode control lists the three modes.
 
-One catch: Dashi 0.4 refuses a manifest that names a permission it doesn't
-know, `power.mode` included, so this version won't install there even
-though `dashi` says `>=0.4` (Dashi 0.5's applet runtime still reports
-0.4.0). The fallback covers a Dashi that answers at protocol 3, and the
-moments the shell is restarting.
+This version needs Dashi 0.5 (`"dashi": ">=0.5"`): Dashi 0.4 doesn't know
+the `power.mode` permission, so it offers 0.1.1 there instead. The fallback
+covers the moments the shell is restarting.
 
 ## To check on the machine
 
