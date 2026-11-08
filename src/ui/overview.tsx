@@ -12,7 +12,7 @@ import { type Bounds, Svg, Text, View } from "@mirinjs/metal";
 import { useEffect, useState } from "react";
 import { thumbLayers } from "../curve.ts";
 import type { Point } from "../hardware.ts";
-import { chosenMode, modeOptions } from "../modes.ts";
+import { chosenMode, modeInEffect, modeOptions } from "../modes.ts";
 import { effective, recipeLine } from "../recipes.ts";
 import { drawLine, formatWhole, liveNumbers } from "../sensors.ts";
 import type { TabId } from "../tabs.ts";
@@ -52,8 +52,9 @@ function PowerBox({ onGo }: { onGo: (place: string) => void }) {
   const { live, state } = useLive();
   const machine = state.machine;
   const profile = machine?.knobs["platform-profile"];
-  const chosen = chosenMode(profile);
-  if (!machine || !profile || !chosen) {
+  const chosen = chosenMode(profile, state.power);
+  const running = modeInEffect(profile, state.power);
+  if (!machine || !profile || !chosen || !running) {
     return (
       <Box title="Power mode" testID="box:power">
         <Text style={{ fontSize: 12, color: colors.textMuted }}>{state.problem ?? "dashi-hardware doesn't report a power mode on this machine."}</Text>
@@ -61,11 +62,15 @@ function PowerBox({ onGo }: { onGo: (place: string) => void }) {
     );
   }
   const column = state.plugged ? "plugged" : "battery";
-  const options = modeOptions(profile).filter((option) => option.enabled);
+  // Four with Automatic when Dashi offers it, the three modes otherwise.
+  const options = modeOptions(profile, state.power).filter((option) => option.enabled);
+  // Automatic says what it chose and why, in Dashi's words (as Settings and Control Center do).
+  const why = state.power?.choice === "automatic" ? state.power.why : null;
   return (
     <Box title="Power mode" testID="box:power">
       <Segmented testID="power-mode" options={options.map((option) => ({ value: option.id, label: option.label }))} value={chosen} onChange={(mode) => void live.setMode(mode)} />
-      <Text style={{ fontSize: 12, color: colors.textMuted }}>{recipeLine(chosen, column, effective(chosen, column, machine.recipes, state.edits, machine.knobs))}</Text>
+      {why && <Text style={{ fontSize: 12, color: colors.textMuted }}>{`${why}.`}</Text>}
+      <Text style={{ fontSize: 12, color: colors.textMuted }}>{recipeLine(running, column, effective(running, column, machine.recipes, state.edits, machine.knobs))}</Text>
       <View style={{ flexDirection: "row" }}>
         <Link label="Change limits…" testID="go:limits" onPress={() => onGo("limits")} />
       </View>

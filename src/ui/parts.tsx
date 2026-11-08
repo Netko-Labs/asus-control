@@ -75,19 +75,21 @@ export function TemperatureLine({ width, height, minutes = 30, strokeWidth = 1.5
   );
 }
 
-/** The modes as four tiles in a row; the one in effect filled with the accent, its glyph and label white. */
+/**
+ * The modes as four tiles in a row; the one chosen filled with the accent, its glyph and label white.
+ * On a Dashi that tells applets its power mode, the choice is Dashi's: Automatic is pressable, and
+ * filled while it is on (modes.ts).
+ */
 export function ModeTiles() {
   const colors = useColors();
   const { live, state } = useLive();
   const profile = state.machine?.knobs["platform-profile"];
-  if (!profile) return null;
-  const chosen = chosenMode(profile);
-  const choose = (choice: ModeChoice): void => {
-    if (choice !== "automatic") void live.setMode(choice);
-  };
+  if (!profile && !state.power) return null;
+  const chosen = chosenMode(profile, state.power);
+  const choose = (choice: ModeChoice): void => void live.setMode(choice);
   return (
     <View testID="modes" focusGroup accessibilityRole="group" accessibilityLabel="Power mode" style={{ flexDirection: "row", gap: 4, flexShrink: 0 }}>
-      {modeOptions(profile).map((option) => {
+      {modeOptions(profile, state.power).map((option) => {
         const on = option.id === chosen;
         const ink = on ? "#ffffff" : colors.text;
         return (

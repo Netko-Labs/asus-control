@@ -47,8 +47,9 @@ home. A machine without a Slash bar has no lid row.
 
 `applet.json` asks for exactly that: `hardware.power`, `hardware.lighting`
 (the keyboard and lid lights), `hardware.fans`, `hardware.tuning` (the last
-two ask for the password once, dashi-hardware's `tune` action). No network,
-no files, no notifications.
+two ask for the password once, dashi-hardware's `tune` action), and
+`power.mode` (Dashi's power mode, Automatic included, on the applets
+channel; below). No network, no files, no notifications.
 
 ## Recipes
 
@@ -77,14 +78,32 @@ bus: a fake G14 (`dashi-hardware --sysfs-root data/fixtures/ga403wr serve` in da
 
 ## Automatic
 
-Automatic is Dashi's own choice (Control Center and Settings keep it in
-Dashi's settings), and nothing an applet can reach chooses it or says it is
-chosen yet: dashi-hardware sets the platform profile, which Dashi's mode
-store takes as a pick of that mode. So the tile is shown and can't be
-pressed, the window's mode control lists the three modes, and a mode picked
-here while Dashi is on Automatic holds until the cable changes, as Fn F5
-does. `AUTOMATIC_REACHABLE` in `src/modes.ts` turns it on once Dashi offers
-applets a way.
+The modes are Dashi's own: the same store Control Center and Settings use,
+Automatic included. Dashi 0.5 tells an applet with `power.mode` its power
+mode on the applets channel (protocol 4; dashiOS `docs/applets.md`,
+"Version 4"): the choice, the mode in effect, and what Automatic chose and
+why. ASUS Control asks Dashi for a pick there, so a tile pressed here is a
+pick in Control Center, and Dashi decides and applies the mode:
+
+- the Automatic tile can be pressed, and is the one filled while Automatic
+  is on (the tooltip and the window say which mode it runs now, and why, in
+  Dashi's words);
+- the window's mode control has four choices, Automatic first;
+- the right-click menu lists Automatic above the modes.
+
+`automaticReachable` in `src/modes.ts` is the detection: Dashi's state
+arrived (`AppletsClient.powerMode` isn't null). On an older Dashi it never
+does, and ASUS Control works as 0.1 did: it sets the platform profile
+through dashi-hardware, which Dashi's mode store takes as a key press (a
+mode picked here while Dashi is on Automatic holds until the cable
+changes, as Fn F5 does), the Automatic tile is shown and can't be pressed,
+and the window's mode control lists the three modes.
+
+One catch: Dashi 0.4 refuses a manifest that names a permission it doesn't
+know, `power.mode` included, so this version won't install there even
+though `dashi` says `>=0.4` (Dashi 0.5's applet runtime still reports
+0.4.0). The fallback covers a Dashi that answers at protocol 3, and the
+moments the shell is restarting.
 
 ## To check on the machine
 

@@ -1,7 +1,8 @@
 import { expect, test } from "bun:test";
 import { dutyAt, thumbLayers } from "../src/curve.ts";
 import { dotLevel, levelName, litDots } from "../src/dots.ts";
-import { chosenMode, modeOfProfile, modeOptions } from "../src/modes.ts";
+import type { PowerState } from "@dashi/applet";
+import { automaticReachable, chosenMode, modeInEffect, modeLabel, modeOfProfile, modeOptions } from "../src/modes.ts";
 import { recipeLine } from "../src/recipes.ts";
 import { downsample, drawLine, recent, SAMPLE_MS, sparkline } from "../src/sensors.ts";
 import { isTab, TABS, tabFor } from "../src/tabs.ts";
@@ -62,18 +63,50 @@ test("tabs: four, and every old pane and link lands on one", () => {
   expect(isTab("power")).toBe(false);
 });
 
+const DASHI: PowerState = {
+  choice: "automatic",
+  available: ["low-power", "balanced", "performance"],
+  mode: "performance",
+  automatic: true,
+  why: "Automatic chose High Performance: plugged in",
+  failed: false,
+};
+
 test("modes: Automatic first, then the machine's own; quiet reads as Quiet", () => {
   const profile = { value: "quiet", choices: ["quiet", "balanced", "performance"] };
-  expect(modeOptions(profile, true).map((mode) => [mode.label, mode.enabled])).toEqual([
-    ["Automatic", true],
+  // An older Dashi: Automatic is shown and can't be pressed; the platform profile is the choice.
+  expect(automaticReachable(null)).toBe(false);
+  expect(modeOptions(profile).map((mode) => [mode.label, mode.enabled])).toEqual([
+    ["Automatic", false],
     ["Quiet", true],
     ["Balanced", true],
     ["Turbo", true],
   ]);
-  expect(modeOptions({ value: "balanced", choices: ["balanced", "performance"] }, false).map((mode) => mode.id)).toEqual(["automatic", "balanced", "performance"]);
-  expect(modeOptions(profile, false)[0]?.enabled).toBe(false);
+  expect(modeOptions({ value: "balanced", choices: ["balanced", "performance"] }).map((mode) => mode.id)).toEqual(["automatic", "balanced", "performance"]);
   expect(chosenMode(profile)).toBe("low-power");
+  expect(modeInEffect(profile)).toBe("low-power");
   expect(modeOfProfile("custom")).toBeNull();
+});
+
+test("modes on a Dashi that tells applets its power mode: Dashi's choice, Automatic pressable", () => {
+  const profile = { value: "performance", choices: ["quiet", "balanced", "performance"] };
+  expect(automaticReachable(DASHI)).toBe(true);
+  expect(modeOptions(profile, DASHI).map((mode) => [mode.id, mode.enabled])).toEqual([
+    ["automatic", true],
+    ["low-power", true],
+    ["balanced", true],
+    ["performance", true],
+  ]);
+  // Automatic is the choice; the mode it runs is the recipe's.
+  expect(chosenMode(profile, DASHI)).toBe("automatic");
+  expect(modeInEffect(profile, DASHI)).toBe("performance");
+  // Dashi's list of modes wins over the profile's choices.
+  expect(modeOptions(profile, { ...DASHI, available: ["low-power", "balanced"] }).map((mode) => mode.id)).toEqual(["automatic", "low-power", "balanced"]);
+  // A machine Dashi has no modes for: as an older Dashi.
+  expect(automaticReachable({ ...DASHI, available: [] })).toBe(false);
+  expect(chosenMode(profile, { ...DASHI, available: [] })).toBe("performance");
+  expect(modeLabel("automatic")).toBe("Automatic");
+  expect(modeLabel("performance")).toBe("Turbo");
 });
 
 test("the Overview's lines: the recipe, what draws power, and the fan's place on its curve", () => {

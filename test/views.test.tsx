@@ -2,10 +2,11 @@ import { expect, test } from "bun:test";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { PowerChoice, PowerState } from "@dashi/applet";
 import { type NativeEvent, type NativeRoot, type NativeTransport, render } from "@mirinjs/metal";
 import type { ReactElement } from "react";
 import { Hardware } from "../src/hardware.ts";
-import { Live } from "../src/live.ts";
+import { type DashiPower, Live } from "../src/live.ts";
 import { Slash } from "../src/slash.ts";
 import { LiveContext } from "../src/ui/controls.tsx";
 import { AsusPopover } from "../src/ui/popover.tsx";
@@ -51,7 +52,7 @@ test("the popover: the live line, the temperature line, the modes as tiles, then
   expect(root.nodeId("temperature-line")).toBeDefined();
   await press("mode:performance");
   expect(setCalls(calls, "platform-profile")).toEqual(["performance"]);
-  // Automatic is Dashi's, out of an applet's reach for now: the tile takes no press.
+  // An older Dashi doesn't tell applets its power mode: Automatic is shown and takes no press.
   await press("mode:automatic");
   expect(setCalls(calls, "platform-profile")).toEqual(["performance"]);
   // The keyboard is at 1: the third dot is High, the first again is off.
@@ -128,4 +129,105 @@ test("the lid's switch goes to dashi-hardware", async () => {
   await press("lid");
   expect(calls.some((call) => call[4] === "SetSlash" && call.includes("enabled") && call.includes("false"))).toBe(true);
   root.unmount();
+});
+
+/** A Dashi that tells applets its power mode (protocol 4), plugged in, on Automatic: every ask recorded, then answered as Dashi's store would. */
+function fakeDashi(): DashiPower & { asked: PowerChoice[] } {
+  const LABEL = { "low-power": "Low Power", balanced: "Balanced", performance: "High Performance" } as const;
+  let state: PowerState | null = {
+    choice: "automatic",
+    available: ["low-power", "balanced", "performance"],
+    mode: "performance",
+    automatic: true,
+    why: "Automatic chose High Performance: plugged in",
+    failed: false,
+  };
+  const listeners = new Set<(state: PowerState | null) => void>();
+  const asked: PowerChoice[] = [];
+  return {
+    asked,
+    get powerMode() {
+      return state;
+    },
+    onPowerMode(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    choosePowerMode(choice) {
+      asked.push(choice);
+      const mode = choice === "automatic" ? "performance" : choice;
+      state = state && {
+        ...state,
+        choice,
+        mode,
+        automatic: choice === "automatic",
+        why: choice === "automatic" ? "Automatic chose High Performance: plugged in" : `${LABEL[mode]}, chosen by you`,
+      };
+      for (const listener of listeners) listener(state);
+      return true;
+    },
+  };
+}
+
+/** A node's accessibility state, from the tree the Metal host would draw. */
+function access(root: NativeRoot, testID: string): { checked?: boolean; disabled?: boolean } {
+  const id = root.nodeId(testID);
+  const find = (node: { props?: { id?: string; access?: object }; children?: unknown[] }): object | null => {
+    if (node.props?.id === id) return node.props?.access ?? {};
+    for (const child of node.children ?? []) {
+      const found = find(child as typeof node);
+      if (found) return found;
+    }
+    return null;
+  };
+  return find(JSON.parse(root.lastTree() ?? "{}")) ?? {};
+}
+
+test("on a Dashi that tells applets its power mode: Automatic pressable and filled, a tile asks Dashi", async () => {
+  const dashi = fakeDashi();
+  let stop = (): void => {};
+  const { root, press, calls } = await mount((live) => {
+    stop = live.followPower(dashi);
+    return <AsusPopover onOpenWindow={() => {}} />;
+  });
+  await settle();
+  expect(access(root, "mode:automatic")).toMatchObject({ checked: true, disabled: false });
+  expect(access(root, "mode:performance")).toMatchObject({ checked: false });
+  // Quiet is a pick asked of Dashi (the same as Control Center's); the platform profile isn't touched.
+  await press("mode:low-power");
+  expect(dashi.asked).toEqual(["low-power"]);
+  expect(setCalls(calls, "platform-profile")).toEqual([]);
+  expect(access(root, "mode:low-power")).toMatchObject({ checked: true });
+  expect(access(root, "mode:automatic")).toMatchObject({ checked: false });
+  // And back to Automatic.
+  await press("mode:automatic");
+  expect(dashi.asked).toEqual(["low-power", "automatic"]);
+  expect(access(root, "mode:automatic")).toMatchObject({ checked: true });
+  // Dashi stops saying (the shell restarting): the platform profile again, Automatic out of reach.
+  stop();
+  await settle();
+  expect(access(root, "mode:automatic")).toMatchObject({ disabled: true });
+  await press("mode:balanced");
+  expect(setCalls(calls, "platform-profile")).toEqual(["balanced"]);
+  root.unmount();
+});
+
+test("the window's mode control: four with Automatic on such a Dashi, and what Automatic chose, in Dashi's words", async () => {
+  const dashi = fakeDashi();
+  const { root } = await mount((live) => {
+    live.followPower(dashi);
+    return <AsusWindow />;
+  });
+  await settle();
+  const tree = root.lastTree() ?? "";
+  expect(tree).toContain("Automatic chose High Performance: plugged in.");
+  // The recipe in effect is Automatic's mode's.
+  expect(tree).toContain("Turbo plugged in:");
+  for (const words of ["Automatic", "Quiet", "Balanced", "Turbo"]) expect(tree).toContain(`"${words}"`);
+  root.unmount();
+  // An older Dashi: three.
+  const older = await mount(() => <AsusWindow />);
+  expect(older.root.lastTree()).not.toContain("Automatic chose");
+  expect(older.root.lastTree()).not.toContain('"Automatic"');
+  older.root.unmount();
 });

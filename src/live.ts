@@ -4,12 +4,19 @@
  * the lid's Slash bar (dashi-hardware's Slash), and the power source. The popover, the
  * window, and the menu bar item all read this one store. A mode change from
  * anywhere (Fn F5, the menu bar, Automatic) pulls the edited recipe along.
+ *
+ * The power mode is Dashi's: on a Dashi that offers it (`DashiPower`, the
+ * applets client's protocol 4), the choice is read from Dashi and asked of
+ * it, Automatic included; on an older one, a mode is set as the platform
+ * profile through dashi-hardware (modes.ts).
  */
 
+import type { PowerChoice, PowerState } from "@dashi/applet";
 import { BusError } from "./bus.ts";
 import type { Hardware, KnobValue, Machine } from "./hardware.ts";
 import { effective, pluggedIn, readEdits, writeEdits } from "./recipes.ts";
 import type { Recipes } from "./hardware.ts";
+import { automaticReachable, type ModeChoice } from "./modes.ts";
 import { History, type Reading, readSensors } from "./sensors.ts";
 import type { Slash, SlashState } from "./slash.ts";
 
@@ -23,16 +30,26 @@ export interface LiveState {
   edits: Recipes;
   /** The last change that didn't go through, for a note. */
   failure: string | null;
+  /** Dashi's power mode, when this Dashi tells applets (null on an older one, or before it says). */
+  power: PowerState | null;
+}
+
+/** What the applets client offers of Dashi's power mode (@dashi/applet's AppletsClient). */
+export interface DashiPower {
+  readonly powerMode: PowerState | null;
+  onPowerMode(listener: (state: PowerState | null) => void): () => void;
+  choosePowerMode(choice: PowerChoice): boolean;
 }
 
 const POLL_MS = 2000;
 const SLASH_EVERY = 5;
 
 export class Live {
-  private state: LiveState = { machine: null, problem: null, readings: [], slash: null, plugged: true, edits: readEdits(), failure: null };
+  private state: LiveState = { machine: null, problem: null, readings: [], slash: null, plugged: true, edits: readEdits(), failure: null, power: null };
   private readonly listeners = new Set<() => void>();
   private timer: ReturnType<typeof setInterval> | null = null;
   private ticks = 0;
+  private dashi: DashiPower | null = null;
   readonly history = new History();
 
   constructor(
@@ -92,8 +109,27 @@ export class Live {
     await this.tick();
   }
 
-  async setMode(mode: string): Promise<void> {
-    await this.setKnob("platform-profile", mode);
+  /** Follows Dashi's power mode (and goes back to the platform profile when Dashi stops saying it); returns what stops it. */
+  followPower(dashi: DashiPower): () => void {
+    this.dashi = dashi;
+    this.set({ power: dashi.powerMode });
+    const stop = dashi.onPowerMode((power) => this.set({ power }));
+    return () => {
+      stop();
+      if (this.dashi === dashi) this.dashi = null;
+      this.set({ power: null });
+    };
+  }
+
+  /** A pick: asked of Dashi when it offers its power mode (as Control Center's), else the platform profile; Automatic only through Dashi. */
+  async setMode(choice: ModeChoice): Promise<void> {
+    if (this.dashi && automaticReachable(this.state.power)) {
+      if (this.dashi.choosePowerMode(choice)) return;
+      this.set({ failure: `Dashi didn't take ${choice === "automatic" ? "Automatic" : "that mode"}.` });
+      return;
+    }
+    if (choice === "automatic") return;
+    await this.setKnob("platform-profile", choice);
   }
 
   /** The edited recipe of `mode`, for the power source in use, in one call; nothing when it has no edits. */

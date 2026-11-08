@@ -11,5 +11,5 @@
   "source": "https://github.com/Netko-Labs/asus-control",
   "categories": ["hardware"],
   "when": { "vendor": "ASUSTeK COMPUTER INC.", "laptop": true },
-  "permissions": ["hardware.power", "hardware.lighting", "hardware.fans", "hardware.tuning"]
+  "permissions": ["hardware.power", "hardware.lighting", "hardware.fans", "hardware.tuning", "power.mode"]
 }
