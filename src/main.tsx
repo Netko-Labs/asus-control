@@ -4,7 +4,9 @@
  * menu bar: a fan with the processor's temperature; a click opens the
  * popover, a right-click the modes; the popover's ⋯ and "Open ASUS
  * Control…" open the window. The power mode is Dashi's: on a Dashi that
- * tells applets (protocol 4), Automatic is one of the modes (modes.ts).
+ * tells applets (protocol 4), Automatic is one of the modes (modes.ts). In
+ * Control Center (protocol 5): the lid light, the fans and the processor
+ * (controls.ts).
  */
 
 import { appearance, defineApplet, metalHost } from "@dashi/applet";
@@ -12,6 +14,7 @@ import { setAppearanceSource } from "@dashi/ui";
 import { type NativeHostTransport, render, spawnNativeHost } from "@mirinjs/metal";
 import { SystemBus } from "./bus.ts";
 import { Hardware } from "./hardware.ts";
+import { connectControls } from "./controls.ts";
 import { Live } from "./live.ts";
 import { automaticReachable, chosenMode, type ModeChoice, modeLabel, modeOptions } from "./modes.ts";
 import { Slash } from "./slash.ts";
@@ -123,8 +126,11 @@ const applet = defineApplet<ItemState>({
       if (JSON.stringify(next) !== JSON.stringify(handle.state)) handle.set(next);
     };
     const stop = live.subscribe(follow);
+    // Its tiles in Dashi's Control Center (protocol 5): the lid light, the fans, the processor.
+    const stopControls = connectControls(live, handle.controls, () => handle.openPopover());
     return () => {
       stop();
+      stopControls();
       stopPower();
       live.stop();
     };
