@@ -160,6 +160,11 @@ export class Live {
     this.set({ slash: await this.slash.read() });
   }
 
+  /** A change that didn't go through elsewhere (a Control Center tile), for the same note. */
+  reportFailure(error: unknown): void {
+    this.set({ failure: error instanceof Error ? error.message : String(error) });
+  }
+
   dismissFailure(): void {
     this.set({ failure: null });
   }

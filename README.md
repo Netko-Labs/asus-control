@@ -32,6 +32,17 @@ controls; it draws no ASUS or ROG marks.
     graphics card's limits, panel overdrive, the charge limit to the
     percent, and what the laptop's keys do.
 
+- **In Control Center** (Dashi 0.5's protocol 5, the `controls` permission):
+  three tiles you add from Control Center's Add list. **Lid light** turns
+  the Slash bar on and off and says its animation ("Not on this lid"
+  without one); **Fans** picks Quiet, Auto (the firmware's curves) or Max
+  (a round tile steps through them, a wide one's name lists them; the
+  choice is kept in `fans.json`); **CPU** reads the processor's
+  temperature and the fan ("71 °C · 3,400 rpm"; the fan alone when the
+  sensors don't say), and a press opens the popover. Dashi draws them; the
+  applet says their state (`src/controls.ts`). The keyboard light has no
+  tile here: Dashi's own Keyboard tile is the same light.
+
 The old panes moved: Power to Overview (the mode) and Advanced (the
 recipes), Battery and Keys to Advanced, Sensors to Overview (`src/tabs.ts`
 maps each old name to its tab).
@@ -47,9 +58,10 @@ home. A machine without a Slash bar has no lid row.
 
 `applet.json` asks for exactly that: `hardware.power`, `hardware.lighting`
 (the keyboard and lid lights), `hardware.fans`, `hardware.tuning` (the last
-two ask for the password once, dashi-hardware's `tune` action), and
+two ask for the password once, dashi-hardware's `tune` action),
 `power.mode` (Dashi's power mode, Automatic included, on the applets
-channel; below). No network, no files, no notifications.
+channel; below), and `controls` (its tiles in Control Center, which grants
+nothing else). No network, no files, no notifications.
 
 ## Recipes
 
