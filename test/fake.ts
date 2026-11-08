@@ -1,4 +1,4 @@
-/** A stand-in for the system bus: a G14 as dashi-hardware and asusd describe it, and every call recorded. */
+/** A stand-in for the system bus: a G14 as dashi-hardware describes it, its Slash bar included, and every call recorded. */
 
 import { type BusctlRunner, SystemBus } from "../src/bus.ts";
 
@@ -42,20 +42,35 @@ const CURVE = [
 
 export function fakeBus(describe: unknown = G14_DESCRIBE) {
   const calls: string[][] = [];
-  const slash: Record<string, number | boolean> = { Enabled: true, Brightness: 200, Interval: 2, Mode: 0x26, ShowOnBoot: true, ShowOnShutdown: true, ShowOnSleep: false, ShowOnBattery: false, ShowOnLidClosed: false, ShowBatteryWarning: true };
+  const slash: Record<string, string | number | boolean> = {
+    enabled: true,
+    brightness: 200,
+    interval: 2,
+    mode: "spectrum",
+    showOnBoot: true,
+    showOnShutdown: true,
+    showOnSleep: false,
+    showOnBattery: false,
+    showOnLidClosed: false,
+    showBatteryWarning: true,
+  };
+  const slashJson = () =>
+    JSON.stringify({ available: true, reason: "", device: "hidraw5", ...slash, modes: ["static", "bounce", "flow", "spectrum"], limits: { brightness: [0, 255], interval: [0, 5] } });
   const run: BusctlRunner = async (args) => {
     calls.push([...args]);
     const ok = (data: unknown) => ({ code: 0, stdout: JSON.stringify(data), stderr: "" });
-    if (args[0] === "get-property") {
-      const name = args[4] ?? "";
-      return ok({ type: typeof slash[name] === "boolean" ? "b" : "y", data: slash[name] });
-    }
-    if (args[0] === "set-property") {
-      const [, , , , name = "", type, value] = args;
-      slash[name] = type === "b" ? value === "true" : Number(value);
-      return { code: 0, stdout: "", stderr: "" };
-    }
     switch (args[4]) {
+      case "Slash":
+        return ok({ type: "s", data: [slashJson()] });
+      case "SetSlash": {
+        // a{sv}: the count, then KEY TYPE VALUE for each; clamped as dashi-hardware does.
+        const entries = args.slice(7);
+        for (let at = 0; at + 3 <= entries.length; at += 3) {
+          const [key = "", type, value = ""] = entries.slice(at, at + 3);
+          slash[key] = type === "b" ? value === "true" : type === "s" ? value : Math.min(key === "interval" ? 5 : 255, Number(value));
+        }
+        return ok({ type: "s", data: [slashJson()] });
+      }
       case "Describe":
         return ok({ type: "s", data: [JSON.stringify(describe)] });
       case "GetFanCurve":

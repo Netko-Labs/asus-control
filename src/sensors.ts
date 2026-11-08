@@ -56,6 +56,11 @@ export function readSensors(root = "/sys/class"): Reading[] {
       const millidegrees = readNumber(join(dir, "temp1_input"));
       if (millidegrees !== null) readings.push({ ...known, value: Math.round(millidegrees / 1000), unit: "°C" });
     }
+    // An AMD laptop's processor and its graphics are one package: amdgpu's power is the package's (its PPT).
+    if (driver === "amdgpu" && !readings.some((reading) => reading.id === "package")) {
+      const microwatts = readNumber(join(dir, "power1_average")) ?? readNumber(join(dir, "power1_input"));
+      if (microwatts !== null) readings.push({ id: "package", label: "Processor package", value: Math.round(microwatts / 1_000_000), unit: "W" });
+    }
     if (driver === "asus") {
       for (const fan of [1, 2, 3]) {
         const rpm = readNumber(join(dir, `fan${fan}_input`));
@@ -75,11 +80,44 @@ export function readSensors(root = "/sys/class"): Reading[] {
   return readings;
 }
 
-/** The popover's live line: "CPU 54 °C · 2300 rpm". */
+/** The live numbers: the processor's temperature, the first fan, and the package's watts (the battery's draw where the package isn't read). */
+export interface LiveNumbers {
+  celsius: number | null;
+  rpm: number | null;
+  watts: number | null;
+}
+
+export function liveNumbers(readings: readonly Reading[]): LiveNumbers {
+  const find = (test: (reading: Reading) => boolean): number | null => readings.find(test)?.value ?? null;
+  return {
+    celsius: find((reading) => reading.id === "cpu"),
+    rpm: find((reading) => reading.unit === "rpm"),
+    watts: find((reading) => reading.id === "package") ?? find((reading) => reading.id === "battery"),
+  };
+}
+
+const whole = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
+
+/** A number as the region writes it, whole: 2,900. */
+export const formatWhole = (value: number): string => whole.format(value);
+
+/** The live line in words, for a screen reader and the tests: "54° CPU · 2,300 rpm · 38 W". */
 export function liveLine(readings: readonly Reading[]): string {
-  const cpu = readings.find((reading) => reading.id === "cpu");
-  const fan = readings.find((reading) => reading.unit === "rpm");
-  return [cpu ? `CPU ${cpu.value} °C` : null, fan ? `${fan.value} rpm` : null].filter(Boolean).join(" · ");
+  const { celsius, rpm, watts } = liveNumbers(readings);
+  return [celsius === null ? null : `${celsius}° CPU`, rpm === null ? null : `${formatWhole(rpm)} rpm`, watts === null ? null : `${formatWhole(watts)} W`].filter(Boolean).join(" · ");
+}
+
+/** What is drawing power, in one line: "Processor 38 W · Battery 14 W" (on battery), "… · Plugged in". */
+export function drawLine(readings: readonly Reading[], plugged: boolean): string {
+  const find = (id: string): number | null => readings.find((reading) => reading.id === id)?.value ?? null;
+  const pkg = find("package");
+  const battery = find("battery");
+  return [
+    pkg === null ? null : `Processor ${formatWhole(pkg)} W`,
+    plugged ? "Plugged in" : battery === null ? "On battery" : `Battery ${battery.toFixed(1)} W`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 }
 
 /** An hour of readings, one every few seconds. */
@@ -102,13 +140,46 @@ export class History {
   }
 }
 
+/** How often Live reads the sensors, so a span of minutes is a count of samples. */
+export const SAMPLE_MS = 2000;
+
+/** The last `minutes` of samples (all there are, if fewer). */
+export function recent(values: readonly number[], minutes: number, everyMs = SAMPLE_MS): readonly number[] {
+  const count = Math.max(1, Math.round((minutes * 60_000) / everyMs));
+  return values.length > count ? values.slice(-count) : values;
+}
+
+/** `values` averaged into at most `count` even buckets: whole-degree samples drawn as a smooth line, not a staircase. */
+export function downsample(values: readonly number[], count: number): number[] {
+  if (values.length <= count || count < 2) return [...values];
+  return Array.from({ length: count }, (_, at) => {
+    const from = Math.floor((at * values.length) / count);
+    const to = Math.max(from + 1, Math.floor(((at + 1) * values.length) / count));
+    const bucket = values.slice(from, to);
+    return bucket.reduce((sum, value) => sum + value, 0) / bucket.length;
+  });
+}
+
+export interface SparkOptions {
+  /** The least span drawn, in the values' unit: a steady 54 ± 1 °C stays a calm line, not a zigzag. */
+  minSpan?: number;
+  /** Room kept above and below, so a stroke at the top or bottom isn't cut. */
+  inset?: number;
+}
+
 /** A sparkline's path over `values`, scaled to width × height. */
-export function sparkline(values: readonly number[], width: number, height: number): string {
+export function sparkline(values: readonly number[], width: number, height: number, { minSpan = 0, inset = 0 }: SparkOptions = {}): string {
   if (values.length < 2) return "";
-  const low = Math.min(...values);
-  const high = Math.max(...values);
+  let low = Math.min(...values);
+  let high = Math.max(...values);
+  if (high - low < minSpan) {
+    const middle = (high + low) / 2;
+    low = middle - minSpan / 2;
+    high = middle + minSpan / 2;
+  }
   const span = high - low || 1;
+  const inner = height - inset * 2;
   return values
-    .map((value, at) => `${at === 0 ? "M" : "L"}${((at / (values.length - 1)) * width).toFixed(1)} ${(height - ((value - low) / span) * height).toFixed(1)}`)
+    .map((value, at) => `${at === 0 ? "M" : "L"}${((at / (values.length - 1)) * width).toFixed(1)} ${(inset + inner - ((value - low) / span) * inner).toFixed(1)}`)
     .join("");
 }

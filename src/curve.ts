@@ -67,24 +67,63 @@ export function nearest(points: readonly Point[], x: number, y: number, plot: Pl
   return best;
 }
 
+/** One layer of the plot: SVG markup drawn in black, for Metal to tint (it draws a markup's own colors in its one tint). */
+const layer = (plot: Plot, body: string): string => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${plot.width} ${plot.height}">${body}</svg>`;
+
 /**
- * The plot as SVG: the grid, the curve, its points (the one held larger),
- * and the live temperature as a line. Fills and strokes are colors given,
- * since Metal draws the markup as it is when no tint is set.
+ * The plot as SVG layers, each tinted on its own: the grid, the curve with
+ * its points (the one held larger), and the live temperature as a dashed
+ * line (empty when it isn't known).
  */
-export function curveSvg(points: readonly Point[], plot: Plot, colors: { line: string; grid: string; point: string; now: string }, held: number | null, now: number | null): string {
+export function curveLayers(points: readonly Point[], plot: Plot, held: number | null, now: number | null): { grid: string; curve: string; now: string } {
   const grid: string[] = [];
   for (let t = TEMP_RANGE[0]; t <= TEMP_RANGE[1]; t += 10) {
     const { x } = toPlot([t, 0], plot);
-    grid.push(`<path d="M${x.toFixed(1)} ${plot.pad}V${plot.height - plot.pad}" stroke="${colors.grid}" stroke-width="1"/>`);
+    grid.push(`<path d="M${x.toFixed(1)} ${plot.pad}V${plot.height - plot.pad}" stroke="#000" stroke-width="1"/>`);
   }
   for (let p = 0; p <= PWM_MAX; p += PWM_MAX / 4) {
     const { y } = toPlot([TEMP_RANGE[0], p], plot);
-    grid.push(`<path d="M${plot.pad} ${y.toFixed(1)}H${plot.width - plot.pad}" stroke="${colors.grid}" stroke-width="1"/>`);
+    grid.push(`<path d="M${plot.pad} ${y.toFixed(1)}H${plot.width - plot.pad}" stroke="#000" stroke-width="1"/>`);
   }
   const placed = points.map((point) => toPlot(point, plot));
   const path = placed.map(({ x, y }, at) => `${at === 0 ? "M" : "L"}${x.toFixed(1)} ${y.toFixed(1)}`).join("");
-  const dots = placed.map(({ x, y }, at) => `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${at === held ? 7 : 5}" fill="${colors.point}"/>`).join("");
-  const live = now === null ? "" : `<path d="M${toPlot([now, 0], plot).x.toFixed(1)} ${plot.pad}V${plot.height - plot.pad}" stroke="${colors.now}" stroke-width="1.5" stroke-dasharray="4 3"/>`;
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${plot.width} ${plot.height}">${grid.join("")}${live}<path d="${path}" fill="none" stroke="${colors.line}" stroke-width="2.5" stroke-linejoin="round"/>${dots}</svg>`;
+  const dots = placed.map(({ x, y }, at) => `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${at === held ? 7 : 5}" fill="#000"/>`).join("");
+  const line = now === null ? "" : `<path d="M${toPlot([now, 0], plot).x.toFixed(1)} ${plot.pad}V${plot.height - plot.pad}" stroke="#000" stroke-width="1.5" stroke-dasharray="4 3"/>`;
+  return {
+    grid: layer(plot, grid.join("")),
+    curve: layer(plot, `<path d="${path}" fill="none" stroke="#000" stroke-width="2.5" stroke-linejoin="round"/>${dots}`),
+    now: line ? layer(plot, line) : "",
+  };
+}
+
+/** The duty the curve gives at `temperature`, between its points (flat past either end). */
+export function dutyAt(points: readonly Point[], temperature: number): number {
+  const first = points[0];
+  const last = points.at(-1);
+  if (!first || !last) return 0;
+  if (temperature <= first[0]) return first[1];
+  if (temperature >= last[0]) return last[1];
+  for (let at = 1; at < points.length; at++) {
+    const [t1, p1] = points[at] as Point;
+    const [t0, p0] = points[at - 1] as Point;
+    if (temperature <= t1) return p0 + ((temperature - t0) / (t1 - t0 || 1)) * (p1 - p0);
+  }
+  return last[1];
+}
+
+/** The Overview's small picture of the curve: the line, and where the fan is on it now (null when the temperature isn't known). */
+export function thumbLayers(points: readonly Point[], plot: Plot, now: number | null): { line: string; dot: string } {
+  const path = points
+    .map((point, at) => {
+      const { x, y } = toPlot(point, plot);
+      return `${at === 0 ? "M" : "L"}${x.toFixed(1)} ${y.toFixed(1)}`;
+    })
+    .join("");
+  let dot = "";
+  if (now !== null && points.length > 0) {
+    const t = Math.max(TEMP_RANGE[0], Math.min(TEMP_RANGE[1], now));
+    const { x, y } = toPlot([t, dutyAt(points, t)], plot);
+    dot = layer(plot, `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="4" fill="#000"/>`);
+  }
+  return { line: layer(plot, `<path d="${path}" fill="none" stroke="#000" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`), dot };
 }

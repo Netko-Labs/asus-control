@@ -3,11 +3,11 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { busError, parseAnswer } from "../src/bus.ts";
-import { curveSvg, fromPlot, isValidCurve, movePoint, nearest, toPlot } from "../src/curve.ts";
+import { curveLayers, fromPlot, isValidCurve, movePoint, nearest, toPlot } from "../src/curve.ts";
 import { Hardware, parseDescribe, variantArgs } from "../src/hardware.ts";
 import { edit, effective, pluggedIn, readEdits, restoreDefaults, writeEdits } from "../src/recipes.ts";
-import { History, liveLine, readSensors, sparkline } from "../src/sensors.ts";
-import { SEGMENTS, Slash, SLASH_MODES, slashFrame } from "../src/slash.ts";
+import { formatWhole, History, liveLine, readSensors, sparkline } from "../src/sensors.ts";
+import { parseSlash, SEGMENTS, Slash, SLASH_MODES, slashFrame } from "../src/slash.ts";
 import { fakeBus, G14_DESCRIBE } from "./fake.ts";
 
 test("Describe parses, and what it doesn't say is left out", () => {
@@ -67,7 +67,10 @@ test("a dragged point stays between its neighbours: temperatures rising, duty no
   expect(Math.round(back[1])).toBe(80);
   expect(nearest(points, at.x + 3, at.y - 3, plot)).toBe(3);
   expect(nearest(points, 0, 0, plot)).toBeNull();
-  expect(curveSvg(points, plot, { line: "#000", grid: "#ccc", point: "#000", now: "#f00" }, 3, 54)).toContain("<circle");
+  const layers = curveLayers(points, plot, 3, 54);
+  expect(layers.curve).toContain('r="7"');
+  expect(layers.now).toContain("stroke-dasharray");
+  expect(curveLayers(points, plot, null, null).now).toBe("");
 });
 
 test("sensors from hwmon and the battery, the live line, and an hour of history", () => {
@@ -79,7 +82,7 @@ test("sensors from hwmon and the battery, the live line, and an hour of history"
   };
   hw("hwmon8", { name: "k10temp", temp1_input: "54250" });
   hw("hwmon9", { name: "asus", fan1_input: "2300", fan1_label: "cpu_fan", fan2_input: "2600", fan2_label: "gpu_fan" });
-  hw("hwmon7", { name: "amdgpu", temp1_input: "48000" });
+  hw("hwmon7", { name: "amdgpu", temp1_input: "48000", power1_average: "38412000" });
   mkdirSync(join(root, "power_supply/BAT1"), { recursive: true });
   writeFileSync(join(root, "power_supply/BAT1/type"), "Battery\n");
   writeFileSync(join(root, "power_supply/BAT1/power_now"), "12345678\n");
@@ -90,7 +93,10 @@ test("sensors from hwmon and the battery, the live line, and an hour of history"
   expect(readings.find((reading) => reading.id === "cpu")?.value).toBe(54);
   expect(readings.find((reading) => reading.id === "fan1")).toMatchObject({ label: "CPU fan", value: 2300 });
   expect(readings.find((reading) => reading.id === "battery")?.value).toBe(12.3);
-  expect(liveLine(readings)).toBe("CPU 54 °C · 2300 rpm");
+  expect(readings.find((reading) => reading.id === "package")).toMatchObject({ value: 38, unit: "W" });
+  expect(liveLine(readings)).toBe(`54° CPU · ${formatWhole(2300)} rpm · 38 W`);
+  // Without the package's power, the battery's draw stands in.
+  expect(liveLine(readings.filter((reading) => reading.id !== "package"))).toBe(`54° CPU · ${formatWhole(2300)} rpm · 12 W`);
   expect(pluggedIn(join(root, "power_supply"))).toBe(false);
   const history = new History(3);
   for (let n = 0; n < 5; n++) history.add(readings);
@@ -112,15 +118,25 @@ test("recipes: defaults with the edits over them, clamped, kept, and restored", 
   expect(readEdits(path)).toEqual(edited);
 });
 
-test("the Slash bar: its properties through asusd, and a frame per animation", async () => {
-  const { bus, slash: props } = fakeBus();
+test("the Slash bar: through dashi-hardware's Slash and SetSlash, and a frame per animation", async () => {
+  const { bus, calls, slash: props } = fakeBus();
   const slash = new Slash(bus);
   const state = await slash.read();
-  expect(state).toMatchObject({ enabled: true, brightness: 200, mode: 0x26, show: { ShowOnBoot: true, ShowOnBattery: false } });
+  expect(state).toMatchObject({ enabled: true, brightness: 200, mode: "spectrum", show: { showOnBoot: true, showOnBattery: false } });
+  expect(state?.modes).toEqual(["static", "bounce", "flow", "spectrum"]);
+  expect(calls.at(-1)).toEqual(["call", "dev.dashi.Hardware1", "/dev/dashi/Hardware1", "dev.dashi.Hardware1", "Slash"]);
   await slash.setBrightness(400);
-  expect(props.Brightness).toBe(255);
-  await slash.setShow("ShowOnBattery", true);
-  expect(props.ShowOnBattery).toBe(true);
+  expect(calls.at(-1)?.slice(4)).toEqual(["SetSlash", "a{sv}", "1", "brightness", "u", "255"]);
+  expect(props.brightness).toBe(255);
+  await slash.setShow("showOnBattery", true);
+  expect(props.showOnBattery).toBe(true);
+  await slash.setMode("flow");
+  expect(calls.at(-1)?.slice(4)).toEqual(["SetSlash", "a{sv}", "1", "mode", "s", "flow"]);
+  await slash.set({ enabled: false, interval: 3 });
+  expect(calls.at(-1)?.slice(6)).toEqual(["2", "enabled", "b", "false", "interval", "u", "3"]);
+  // No bar, or an answer that makes no sense: nothing to show.
+  expect(parseSlash(JSON.stringify({ available: false, reason: "no-device" }))).toBeNull();
+  expect(parseSlash("not json")).toBeNull();
   for (const { mode } of SLASH_MODES) {
     const frame = slashFrame(mode, 3);
     expect(frame).toHaveLength(SEGMENTS);

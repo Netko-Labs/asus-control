@@ -1,16 +1,20 @@
 /**
- * Advanced (dashiOS spec, CPU tuning A–E): the Curve Optimizer, applied
- * with a countdown that puts it back unless kept (dashi-hardware's
- * SetCurveOptimizer and ConfirmTuning, its boot guard behind them); the
- * three power limits; boost and the preference; the graphics card's
- * limits; the panel's overdrive. Every range is the firmware's.
+ * Advanced (dashiOS spec, CPU tuning A–E): each mode's recipe; the Curve
+ * Optimizer, applied with a countdown that puts it back unless kept
+ * (dashi-hardware's SetCurveOptimizer and ConfirmTuning, its boot guard
+ * behind them); the three power limits now; boost and the preference; the
+ * graphics card's limits; the panel's overdrive; the battery's charge limit
+ * to the percent; and what the laptop's own keys do. Every range is the
+ * firmware's.
  */
 
-import { Button, Group, Note, Row, Segmented, Sheet, useColors } from "@dashi/ui";
+import { Button, Group, Note, Row, Segmented, Sheet, Switch, useColors } from "@dashi/ui";
 import { Text, View } from "@mirinjs/metal";
 import { useEffect, useState } from "react";
 import type { CurveOptimizer } from "../hardware.ts";
 import { SectionTitle, SliderValue, useLive } from "./controls.tsx";
+import { BatterySection, choicesShown, RecipesSection } from "./power.tsx";
+import { KeysSection } from "./sensors.tsx";
 
 /** How long a new undervolt waits to be kept before it goes back (as Displays does). */
 export const KEEP_SECONDS = 20;
@@ -116,7 +120,7 @@ function KnobSliders({ list }: { list: ReadonlyArray<{ knob: string; label: stri
   );
 }
 
-export function AdvancedPane({ onAsk }: { onAsk: (ask: { token: string; previous: number }) => void }) {
+export function AdvancedTab({ onAsk }: { onAsk: (ask: { token: string; previous: number }) => void }) {
   const { live, state } = useLive();
   const knobs = state.machine?.knobs ?? {};
   const boost = knobs.boost;
@@ -124,48 +128,40 @@ export function AdvancedPane({ onAsk }: { onAsk: (ask: { token: string; previous
   const overdrive = knobs["panel-overdrive"];
   return (
     <View style={{ flexDirection: "column", gap: 14 }}>
+      <RecipesSection />
+      <SectionTitle title="Power limits now" detail="Lower runs cooler and quieter, and slower in long tasks. The mode's recipe sets them again when the mode changes." />
+      <KnobSliders list={LIMITS} />
       <SectionTitle title="Undervolt" detail="The Curve Optimizer: an offset to every core's voltage curve." />
       <Undervolt onAsk={onAsk} />
-      <SectionTitle title="Power limits" detail="Lower runs cooler and quieter, and slower in long tasks. The mode's recipe sets them again when the mode changes." />
-      <KnobSliders list={LIMITS} />
-      <SectionTitle title="Processor" />
-      <Group>
-        {boost && (
-          <Row label="Boost clock" detail="Faster bursts, more heat.">
-            <Segmented
-              testID="boost"
-              options={[
-                { value: "on", label: "On" },
-                { value: "off", label: "Off" },
-              ]}
-              value={boost.value === true ? "on" : "off"}
-              onChange={(value) => void live.setKnob("boost", value === "on")}
-            />
-          </Row>
-        )}
-        {epp?.choices && (
-          <Row label="Prefer" stack>
-            <Segmented testID="epp" options={epp.choices.map((choice) => ({ value: choice, label: choice.replaceAll("_", " ") }))} value={String(epp.value)} onChange={(value) => void live.setKnob("epp", value)} />
-          </Row>
-        )}
-      </Group>
+      {(boost || epp?.choices) && (
+        <>
+          <SectionTitle title="Processor" />
+          <Group>
+            {boost && (
+              <Row label="Boost clock" detail="Faster bursts, more heat.">
+                <Switch testID="boost" on={boost.value === true} onChange={(on) => void live.setKnob("boost", on)} />
+              </Row>
+            )}
+            {epp?.choices && (
+              <Row label="Energy" stack>
+                <Segmented testID="epp" options={choicesShown("epp", epp.choices, String(epp.value))} value={String(epp.value)} onChange={(value) => void live.setKnob("epp", value)} />
+              </Row>
+            )}
+          </Group>
+        </>
+      )}
       <SectionTitle title="Graphics card" />
       <KnobSliders list={GRAPHICS} />
       {overdrive && (
         <Group>
           <Row label="Panel overdrive" detail="Sharper motion on the screen.">
-            <Segmented
-              testID="overdrive"
-              options={[
-                { value: "on", label: "On" },
-                { value: "off", label: "Off" },
-              ]}
-              value={overdrive.value === true ? "on" : "off"}
-              onChange={(value) => void live.setKnob("panel-overdrive", value === "on")}
-            />
+            <Switch testID="overdrive" on={overdrive.value === true} onChange={(on) => void live.setKnob("panel-overdrive", on)} />
           </Row>
         </Group>
       )}
+      <SectionTitle title="Battery" />
+      <BatterySection />
+      <KeysSection />
     </View>
   );
 }

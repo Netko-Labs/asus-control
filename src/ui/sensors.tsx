@@ -6,7 +6,7 @@
 
 import { Group, Note, Row, useColors } from "@dashi/ui";
 import { Svg, Text, View } from "@mirinjs/metal";
-import { sparkline } from "../sensors.ts";
+import { downsample, formatWhole, sparkline } from "../sensors.ts";
 import { SectionTitle, useLive } from "./controls.tsx";
 
 const SPARK = { width: 160, height: 24 };
@@ -18,19 +18,20 @@ export function SensorsPane() {
   return (
     <Group testID="sensors">
       {state.readings.map((reading) => {
-        const path = sparkline(live.history.of(reading.id), SPARK.width, SPARK.height);
+        const path = sparkline(downsample(live.history.of(reading.id), SPARK.width / 2), SPARK.width, SPARK.height, { inset: 1 });
         return (
           <Row key={reading.id} label={reading.label}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
               {path && (
                 <Svg
-                  markup={`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${SPARK.width} ${SPARK.height}"><path d="${path}" fill="none" stroke="${colors.selection}" stroke-width="1.5"/></svg>`}
+                  markup={`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${SPARK.width} ${SPARK.height}"><path d="${path}" fill="none" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/></svg>`}
                   width={SPARK.width}
                   height={SPARK.height}
+                  color={colors.selection}
                 />
               )}
               <View style={{ width: 72, alignItems: "flex-end" }}>
-                <Text style={{ fontSize: 13, color: colors.text }}>{`${reading.value} ${reading.unit}`}</Text>
+                <Text style={{ fontSize: 13, color: colors.text }}>{`${reading.unit === "rpm" ? formatWhole(reading.value) : reading.value} ${reading.unit}`}</Text>
               </View>
             </View>
           </Row>
@@ -42,13 +43,13 @@ export function SensorsPane() {
 
 /** What each key Dashi knows is for (dashi-hardware's Describe names the keys; the shell's keymap acts on them). */
 const KEY_WORDS: Readonly<Record<string, { key: string; does: string }>> = {
-  mode: { key: "Fn F5", does: "Changes the power mode: Quiet, Balanced, Performance" },
+  mode: { key: "Fn F5", does: "Changes the power mode: Quiet, Balanced, Turbo" },
   lighting: { key: "Fn F4", does: "Steps the keyboard light" },
   rog: { key: "The ROG key", does: "What Dashi's keyboard settings give it" },
   micMute: { key: "Fn F9", does: "Turns the microphone off and on" },
 };
 
-export function KeysPane() {
+export function KeysSection() {
   const { state } = useLive();
   const keys = Object.keys(state.machine?.hotkeys ?? {}).filter((name) => name in KEY_WORDS);
   if (keys.length === 0) return <Note>dashi-hardware knows no special keys on this machine.</Note>;

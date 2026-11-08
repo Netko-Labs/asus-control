@@ -16,7 +16,7 @@ import type { Knob, KnobValue, Recipe, Recipes } from "./hardware.ts";
 export const MODES = [
   { id: "low-power", label: "Quiet" },
   { id: "balanced", label: "Balanced" },
-  { id: "performance", label: "Performance" },
+  { id: "performance", label: "Turbo" },
 ] as const;
 
 export type Column = "plugged" | "battery";
@@ -105,4 +105,15 @@ export function pluggedIn(root = "/sys/class/power_supply"): boolean {
   } catch {
     return true;
   }
+}
+
+/** A mode's recipe in one line: "Balanced plugged in: 55 W, graphics 80 W, boost on." */
+export function recipeLine(mode: string, column: Column, recipe: Recipe): string {
+  const label = MODES.find((each) => each.id === mode)?.label ?? mode;
+  const parts = [
+    typeof recipe["ppt-spl"] === "number" ? `${recipe["ppt-spl"]} W` : null,
+    typeof recipe["nv-tgp"] === "number" ? `graphics ${recipe["nv-tgp"]} W` : null,
+    typeof recipe.boost === "boolean" ? `boost ${recipe.boost ? "on" : "off"}` : null,
+  ].filter(Boolean);
+  return `${label} ${column === "plugged" ? "plugged in" : "on battery"}: ${parts.length ? parts.join(", ") : "the firmware's settings"}.`;
 }
